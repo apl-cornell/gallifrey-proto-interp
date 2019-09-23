@@ -121,17 +121,17 @@ def p_qualifier_u(p):
 
 # STATEMENTS (commands)
 
-
-def p_cap_decl(p):
-    '''expr : LET ID IN expr'''
-    line = p.lineno(1)
-    p[0] = CapDecl(p[2], p[4], line)
+#
+# def p_cap_decl(p):
+#     '''expr : LET ID IN expr'''
+#     line = p.lineno(1)
+#     p[0] = CapDecl(p[2], p[4], line)
 
 
 def p_var_decl(p):
-    '''expr : LET ID ID ASSIGN expr IN expr'''
+    '''expr : LET ID ASSIGN expr IN expr'''
     line = p.lineno(1)
-    p[0] = VarDecl(p[2], p[3], p[5], p[7], line)
+    p[0] = VarDecl(p[2], p[5], p[7], line)
 
 
 def p_assign(p):
@@ -163,6 +163,10 @@ def p_print(p):
     line = p.lineno(1)
     p[0] = Print(p[3], line)
 
+def p_print(p):
+    'expr : SLEEP LPAREN expr RPAREN'
+    line = p.lineno(1)
+    p[0] = Sleep(p[3], line)
 
 def p_destroy(p):
     'expr : DESTROY LPAREN expr RPAREN'

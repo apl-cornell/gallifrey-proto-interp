@@ -189,20 +189,20 @@ class T_shared(Type):
 # EXPRESSIONS
 
 
-class CapDecl(Expr):
-    def __init__(self, cap: str, e: Expr, line: int):
-        super().__init__(line)
-        self.cap = cap
-        self.e = e
-
-    def eval(self, visitor) -> Value:
-        return visitor.evalCapDecl(self)
+# class CapDecl(Expr):
+#     def __init__(self, cap: str, e: Expr, line: int):
+#         super().__init__(line)
+#         self.cap = cap
+#         self.e = e
+#
+#     def eval(self, visitor) -> Value:
+#         return visitor.evalCapDecl(self)
 
 
 class VarDecl(Expr):
-    def __init__(self, cap: str, var: str, e1: Expr, e2: Expr, line: int):
+    def __init__(self, var: str, e1: Expr, e2: Expr, line: int):
         super().__init__(line)
-        self.cap = cap
+        self.cap = None
         self.var = var
         self.e1 = e1
         self.e2 = e2
@@ -382,6 +382,14 @@ class Print(Expr):
     def eval(self, visitor) -> Value:
         return visitor.evalPrint(self)
 
+
+class Sleep(Expr):
+    def __init__(self, e: Expr, line: int):
+        super().__init__(line)
+        self.e = e
+
+    def eval(self, visitor) -> Value:
+        return visitor.evalSleep(self)
 
 class Var(Expr):
     def __init__(self, name: str, line: int):

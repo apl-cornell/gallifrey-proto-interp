@@ -1,5 +1,9 @@
 Created by PLY version 3.11 (http://www.dabeaz.com/ply)
 
+Unused terminals:
+
+    SLEEP
+
 Grammar
 
 Rule 0     S' -> program
@@ -116,6 +120,7 @@ RCURL                : 55 56
 REF                  : 41
 RPAREN               : 22 23 42 43 49 50 51 60 61 62 65 66 67
 SEMICOLON            : 21
+SLEEP                : 
 THEN                 : 19
 TIMES                : 27 40
 U                    : 15

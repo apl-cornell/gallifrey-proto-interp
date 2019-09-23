@@ -2,6 +2,7 @@ from ast import *
 from typing import List, Set, Dict, Tuple
 from symbol_table import SymbolTable, EntryStatus, StoreEntry
 from threading import Thread, Lock, current_thread
+import time
 
 
 # VALUES
@@ -136,16 +137,19 @@ class EvalVisitor:
         return self.st[current_thread().name]
 
     # EVAL
-    def evalCapDecl(self, node: CapDecl) -> Value:
-        if self.store().containsCap(node.cap):
-            raise NameError("capability {} already defined".format(node.cap))
-        self.newScope()
-        self.store().addCap(node.cap)
-        return node.e.eval(self)
+    # def evalCapDecl(self, node: CapDecl) -> Value:
+    #     if self.store().containsCap(node.cap):
+    #         raise NameError("capability {} already defined".format(node.cap))
+    #     self.newScope()
+    #     self.store().addCap(node.cap)
+    #     return node.e.eval(self)
 
     def evalVarDecl(self, node: VarDecl) -> Value:
-        if not self.store().containsCap(node.cap):
-            raise NameError("capability {} not defined".format(node.cap))
+        cap = self.newCap()
+        self.store().addCap(cap)
+        node.cap = cap
+        # if not self.store().containsCap(node.cap):
+        #     raise NameError("capability {} not defined".format(node.cap))
         if self.store().containsVar(node.var):
             raise NameError("variable {} already exists".format(node.var))
         v = node.e1.eval(self)
@@ -217,6 +221,7 @@ class EvalVisitor:
         return v.fields[n][0]
 
     def evalFunc(self, node: Func) -> Value:
+        # TODO capture avoiding substitution
         return V_closure(node.params, node.out, node.e, self.store().copy(), DEFAULT_CAP)
 
     def evalUnary(self, node: Unary) -> Value:
@@ -313,6 +318,12 @@ class EvalVisitor:
         v = node.e.eval(self)
         print(str(v))
         return V_unit()
+
+    def evalSleep(self, node: Print) -> Value:
+        v = node.e.eval(self)
+        if not isinstance(v, V_int):
+            raise TypeError("expected int")
+        time.sleep(v.val)
 
     def evalInt(self, node: Int) -> Value:
         return V_int(node.val)

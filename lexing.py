@@ -21,6 +21,7 @@ reserved = {
     'unit': 'UNIT',
 
     'ref': 'REF',
+    'sleep': 'SLEEP',
 
     # 'shared': 'SHARED',
     # 'unique': 'UNIQUE',
