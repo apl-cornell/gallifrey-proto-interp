@@ -22,18 +22,17 @@ reserved = {
 
     'ref': 'REF',
     'sleep': 'SLEEP',
+    'mut': 'MUT',
+    'focus': 'FOCUS',
 
-    # 'shared': 'SHARED',
-    # 'unique': 'UNIQUE',
-    # 'local': 'LOCAL',
-    # 'borrowed': 'BORROWED',
     'B': 'B',
     'A': 'A',
     'U': 'U',
 
     'destroy': 'DESTROY',
     'branch': 'BRANCH',
-    'print': 'PRINT'
+    'print': 'PRINT',
+    'this': 'THIS',
 }
 
 symbols = {

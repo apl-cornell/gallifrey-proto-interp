@@ -68,7 +68,6 @@ class Expr(Serializable):
 class Value(Expr):
     def __init__(self, c: str):
         super().__init__(0)
-        # TODO capabilities in value or in store?
         self.capability = c
 
     def getCap(self):
@@ -87,21 +86,6 @@ class Type(Serializable):
 
 # QUALIFIER
 
-
-# class Q_local:
-#     def __init__(self):
-#         pass
-#
-#
-# class Q_borrowed:
-#     def __init__(self):
-#         pass
-#
-#
-# class Q_unique:
-#     def __init__(self):
-#         pass
-
 class Q_a(Qualifier):
     def __init__(self):
         super().__init__()
@@ -118,7 +102,6 @@ class Q_u(Qualifier):
 
 
 # TYPES
-
 
 class T_int(Type):
     def __init__(self):
@@ -186,17 +169,11 @@ class T_shared(Type):
         return isinstance(other, T_shared) and self.t == other.t
 
 
+# id, qualifier, type, mutable flag
+Field = Tuple[str, Qualifier, Type, bool]
+
+
 # EXPRESSIONS
-
-
-# class CapDecl(Expr):
-#     def __init__(self, cap: str, e: Expr, line: int):
-#         super().__init__(line)
-#         self.cap = cap
-#         self.e = e
-#
-#     def eval(self, visitor) -> Value:
-#         return visitor.evalCapDecl(self)
 
 
 class VarDecl(Expr):
@@ -213,6 +190,7 @@ class VarDecl(Expr):
     def visit(self, visitor):
         visitor.evalVarDecl(self)
 
+
 class If(Expr):
     def __init__(self, cond: Expr, e1: Expr, e2: Expr, line: int):
         super().__init__(line)
@@ -226,6 +204,7 @@ class If(Expr):
     def visit(self, visitor):
         visitor.evalIf(self)
 
+
 class While(Expr):
     def __init__(self, cond: Expr, e: Expr, line: int):
         super().__init__(line)
@@ -236,6 +215,16 @@ class While(Expr):
         return visitor.evalWhile(self)
 
 
+class Focus(Expr):
+    def __init__(self, focused: Expr, e: Expr, line: int):
+        super().__init__(line)
+        self.focused = focused
+        self.e = e
+
+    def eval(self, visitor) -> Value:
+        return visitor.evalFocus(self)
+
+
 class Seq(Expr):
     def __init__(self, e1: Expr, e2: Expr, line: int):
         super().__init__(line)
@@ -244,15 +233,6 @@ class Seq(Expr):
 
     def eval(self, visitor) -> Value:
         return visitor.evalSeq(self)
-
-
-class Ref(Expr):
-    def __init__(self, e: Expr, line: int):
-        super().__init__(line)
-        self.e = e
-
-    def eval(self, visitor) -> Value:
-        return visitor.evalRef(self)
 
 
 class Destroy(Expr):
@@ -292,6 +272,15 @@ class Get(Expr):
 
     def eval(self, visitor) -> Value:
         return visitor.evalGet(self)
+
+
+class FocusGet(Expr):
+    def __init__(self, name: str, line: int):
+        super().__init__(line)
+        self.name = name
+
+    def eval(self, visitor) -> Value:
+        return visitor.evalFocusGet(self)
 
 
 class Func(Expr):
@@ -390,6 +379,7 @@ class Sleep(Expr):
 
     def eval(self, visitor) -> Value:
         return visitor.evalSleep(self)
+
 
 class Var(Expr):
     def __init__(self, name: str, line: int):

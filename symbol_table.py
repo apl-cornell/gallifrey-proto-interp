@@ -1,6 +1,5 @@
 from ast import *
 from typing import Dict, List, Tuple, Any
-from threading import Lock, current_thread
 
 
 class EntryStatus:

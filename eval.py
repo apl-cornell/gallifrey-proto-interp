@@ -337,6 +337,12 @@ class EvalVisitor:
     def evalVar(self, node: Var) -> Value:
         return self.store().getVar(node.name).val
 
+    def evalFocusGet(self, node: FocusGet) -> Value:
+        raise Exception("unimplemented")
+
+    def evalFocus(self, node: Focus) -> Value:
+        raise Exception("unimplemented")
+
     def handleThread(self, e: Expr):
         e.eval(self)
         with self.storeLock:

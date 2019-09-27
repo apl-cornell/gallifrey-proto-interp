@@ -12,8 +12,8 @@ precedence = (
     ('left', 'GT', 'LT', 'GTE', 'LTE'),
     ('left', 'PLUS', 'MINUS'),
     ('left', 'TIMES', 'DIVIDE', 'MOD'),
-    ('right', 'UMINUS', 'NOT', 'DEREF'),
-    ('left', 'LPAREN', 'RPAREN', 'DOT')  # 'LBRAC', 'LPAREN', 'RBRAC', 'RPAREN')
+    ('right', 'UMINUS', 'NOT'),
+    ('left', 'LPAREN', 'RPAREN', 'DOT', 'LBRAC', 'RBRAC', 'LCURL', 'RCURL')
 )
 
 
@@ -141,15 +141,21 @@ def p_assign(p):
 
 
 def p_if(p):
-    '''expr : IF expr THEN expr ELSE expr END'''
+    '''expr : IF expr LCURL expr RCURL ELSE LCURL expr RCURL'''
     line = p.lineno(1)
     p[0] = If(p[2], p[4], p[6], line)
 
 
 def p_while(p):
-    '''expr : WHILE expr DO expr END'''
+    '''expr : WHILE expr LCURL expr RCURL'''
     line = p.lineno(1)
     p[0] = While(p[2], p[4], line)
+
+
+def p_focus(p):
+    '''expr : FOCUS expr LCURL expr RCURL'''
+    line = p.lineno(1)
+    p[0] = Focus(p[2], p[4], line)
 
 
 def p_seq(p):
@@ -163,10 +169,12 @@ def p_print(p):
     line = p.lineno(1)
     p[0] = Print(p[3], line)
 
+
 def p_print(p):
     'expr : SLEEP LPAREN expr RPAREN'
     line = p.lineno(1)
     p[0] = Sleep(p[3], line)
+
 
 def p_destroy(p):
     'expr : DESTROY LPAREN expr RPAREN'
@@ -178,6 +186,12 @@ def p_get(p):
     'expr : expr DOT ID'
     line = p.lineno(1)
     p[0] = Get(p[1], p[3], line)
+
+
+def p_focus_get(p):
+    'expr : THIS DOT ID'
+    line = p.lineno(1)
+    p[0] = FocusGet(p[3], line)
 
 
 # OPERATORS and GROUPING
@@ -239,18 +253,6 @@ def p_unot(p):
     p[0] = Unary(Unop.NOT, p[2], line)
 
 
-def p_uderef(p):
-    '''expr : TIMES expr %prec DEREF'''
-    line = p.lineno(1)
-    p[0] = Unary(Unop.DEREF, p[2], line)
-
-
-def p_ref(p):
-    '''expr : expr REF'''
-    line = p.lineno(1)
-    p[0] = Ref(p[1], line)
-
-
 def p_group(p):
     'expr : LPAREN expr RPAREN'
     p[0] = p[2]
@@ -296,26 +298,31 @@ def p_varlist_multi(p):
 
 
 def p_branch(p):
-    '''expr : BRANCH LPAREN varlist RPAREN expr END'''
+    '''expr : BRANCH LPAREN varlist RPAREN LCURL expr RCURL'''
     line = p.lineno(1)
     p[0] = Branch(p[3], p[5], line)
 
 
 def p_branch_single(p):
-    '''expr : BRANCH LPAREN ID RPAREN expr END'''
+    '''expr : BRANCH LPAREN ID RPAREN LCURL expr RCURL'''
     line = p.lineno(1)
     p[0] = Branch([p[3]], p[5], line)
 
 
 def p_branch_empty(p):
-    '''expr : BRANCH LPAREN RPAREN expr END'''
+    '''expr : BRANCH LPAREN RPAREN LCURL expr RCURL'''
     line = p.lineno(1)
     p[0] = Branch([], p[4], line)
 
 
 def p_field(p):
     '''field : ID ASSIGN qualifier expr'''
-    p[0] = [p[1], p[3], p[4]]
+    p[0] = [p[1], p[3], p[4], False]
+
+
+def p_field_mut(p):
+    '''field : MUT ID ASSIGN qualifier expr'''
+    p[0] = [p[1], p[3], p[4], True]
 
 
 def p_fieldlist(p):
@@ -349,7 +356,13 @@ def p_object_single(p):
 
 def p_param(p):
     '''param : ID COLON qualifier type'''
-    p[0] = [p[1], p[3], p[4]]
+    p[0] = [p[1], p[3], p[4], False]
+
+
+# this is actually only possible in the case of object types, should throw an error in the case of function
+def p_param_mut(p):
+    '''param : MUT ID COLON qualifier type'''
+    p[0] = [p[1], p[3], p[4], True]
 
 
 def p_paramlist(p):
@@ -363,7 +376,7 @@ def p_paramlist_multi(p):
 
 
 def p_func(p):
-    '''expr : FUN LPAREN paramlist RPAREN type ARROW expr END'''
+    '''expr : FUN LPAREN paramlist RPAREN ARROW type LCURL expr RCURL'''
     line = p.lineno(1)
     param_names = [x[0] for x in p[3]]
     if len(param_names) != len(set(param_names)):
@@ -372,13 +385,13 @@ def p_func(p):
 
 
 def p_func_single(p):
-    '''expr : FUN LPAREN param RPAREN type ARROW expr END'''
+    '''expr : FUN LPAREN param RPAREN ARROW type LCURL expr RCURL'''
     line = p.lineno(1)
     p[0] = Func([p[3]], p[5], p[7], line)
 
 
 def p_func_none(p):
-    '''expr : FUN LPAREN RPAREN type ARROW expr END'''
+    '''expr : FUN LPAREN RPAREN ARROW type LCURL expr RCURL'''
     line = p.lineno(1)
     p[0] = Func([], p[4], p[6], line)
 
