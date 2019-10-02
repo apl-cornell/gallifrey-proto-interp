@@ -11,15 +11,26 @@ class Cap:
     NONE = "@cap_C_NONE"
     ANY = "@cap_C_ANY"
 
+
 # read and write any
 C_ANY = Cap.ANY, Cap.ANY
-DEFAULT_CAP = Cap.ANY
+DEFAULT_cap = Cap.ANY
+
+
+# essentially, if LHS write cap is NONE then we can't assign
+# otherwise if RHS read cap is ANY or if the caps match then we can assign
+def can_assign(write: str, read: str):
+    if write == Cap.NONE:
+        return False
+    else:
+        return read == Cap.ANY or read == write
+
 
 # VALUES
 
 class V_unit(Value):
     def __init__(self):
-        super().__init__(DEFAULT_CAP)
+        super().__init__(DEFAULT_cap)
         self.type = T_unit()
 
     def __str__(self):
@@ -31,7 +42,7 @@ class V_unit(Value):
 
 class V_int(Value):
     def __init__(self, val: int):
-        super().__init__(DEFAULT_CAP)
+        super().__init__(DEFAULT_cap)
         self.type = T_int()
         self.val = val
 
@@ -44,7 +55,7 @@ class V_int(Value):
 
 class V_bool(Value):
     def __init__(self, val: bool):
-        super().__init__(DEFAULT_CAP)
+        super().__init__(DEFAULT_cap)
         self.type = T_bool()
         self.val = val
 
@@ -124,8 +135,10 @@ class EvalVisitor:
 
     def __init__(self):
         t_name = current_thread().name
-        self.st = {t_name: SymbolTable()}
-        self.locations: Dict[int, Value] = {}  # refs
+        self.st: Dict[str, SymbolTable] = {t_name: SymbolTable()}
+        self.focus: Dict[str, SymbolTable] = {t_name: SymbolTable()}
+        self.K: Dict[str, Set[str]] = {t_name: set()}  # input caps
+        self.locations: Dict[int, Value] = {}  # refs, should be shared btwn threads
         self.lid = 0
         self.tid = 0
         self.capid = 0
@@ -137,25 +150,25 @@ class EvalVisitor:
     def tname(self):
         return current_thread().name
 
-    def newScope(self):
+    def newscope(self):
         with self.storeLock:
-            self.st[self.tname()] = self.st[self.tname()].newScope()
+            self.st[self.tname()] = self.st[self.tname()].newscope()
 
-    def exitScope(self):
+    def exitscope(self):
         with self.storeLock:
-            self.st[self.tname()] = self.st[self.tname()].exitScope()
+            self.st[self.tname()] = self.st[self.tname()].exitscope()
 
-    def newLoc(self) -> int:
+    def newloc(self) -> int:
         with self.refLock:
             self.lid += 1
             return self.lid
 
-    def newThread(self) -> str:
+    def newthread(self) -> str:
         with self.threadLock:
             self.tid += 1
             return "@thread" + str(self.tid)
 
-    def newCap(self) -> str:
+    def newcap(self) -> str:
         with self.capLock:
             self.capid += 1
             return "@cap" + str(self.capid)
@@ -163,43 +176,55 @@ class EvalVisitor:
     def store(self):
         return self.st[current_thread().name]
 
+    def focus_stack(self):
+        return self.focus[current_thread().name]
+
+    def getK(self):
+        return self.K[current_thread().name]
+
+    def setK(self, x: Set[str]):
+        self.K[current_thread().name] = x
+
+    # TODO focus stack methods
+    # TODO set K, what do I do with K?
+
     # EVAL
 
     def evalVarDecl(self, node: VarDecl) -> Result:
-        cap = self.newCap()
-        self.store().addCap(cap)
+        cap = self.newcap()
+        self.store().addcap(cap)
         node.cap = cap
-        # if not self.store().containsCap(node.cap):
+        # if not self.store().containscap(node.cap):
         #     raise NameError("capability {} not defined".format(node.cap))
-        if self.store().containsVar(node.var):
+        if self.store().containsvar(node.var):
             raise NameError("variable {} already exists".format(node.var))
         v = node.e1.eval(self)
         v.capability = node.cap
-        self.newScope()
-        self.store().addVar(node.var, v, node.cap)
+        self.newscope()
+        self.store().addvar(node.var, v, node.cap)
         return node.e2.eval(self)
 
     def evalIf(self, node: If) -> Result:
         vcond, rwcond, kcond, pcond = node.cond.eval(self)
         if not isinstance(vcond, V_bool):
             raise TypeError("if condition needs to be bool")
-        self.newScope()
+        self.newscope()
         # TODO do we need to eval both branches of if?
         v, rw, k, p = None, None, None, None
         if vcond.val:
             v, rw, k, p = node.e1.eval(self)
         else:
             v, rw, k, p = node.e2.eval(self)
-        self.exitScope()
+        self.exitscope()
         return v, (rw[0], Cap.NONE), k, p.union(kcond).union(pcond)
 
     def evalWhile(self, node: While) -> Result:
         vcond, rwcond, kcond, pcond = node.cond.eval(self)
         if not isinstance(vcond, V_bool):
             raise TypeError("if condition needs to be bool")
-        self.newScope()
+        self.newscope()
         v, rw, k, p = node.e.eval(self)
-        self.exitScope()
+        self.exitscope()
         return V_unit(), C_ANY, set(), kcond.union(pcond).union(k).union(p)
 
     def evalSeq(self, node: Seq) -> Result:
@@ -209,16 +234,18 @@ class EvalVisitor:
 
     # def evalRef(self, node: Ref) -> Result:
     #     v = node.e.eval(self)
-    #     l = self.newLoc()
+    #     l = self.newloc()
     #     self.locations[l] = v
-    #     return V_ref(l, v.type, DEFAULT_CAP)
+    #     return V_ref(l, v.type, DEFAULT_cap)
 
     def evalDestroy(self, node: Destroy) -> Result:
+
         if isinstance(node.e, Var):
+            v, rw, k, p = node.e.eval(self)
             self.store().destroy(node.e.name)
+            return V_unit(), (Cap.NONE, Cap.NONE), k, p
         else:
             raise Exception("not implemented!")
-        return V_unit(),
 
     def evalAssign(self, node: Assign) -> Result:
         v1 = node.e1.eval(self)
@@ -237,7 +264,7 @@ class EvalVisitor:
             name, qualifier, e = f
             v = e.eval(self)
             v_fields.append((name, qualifier, v))
-        return V_obj(v_fields, DEFAULT_CAP)
+        return V_obj(v_fields, DEFAULT_cap)
 
     def evalGet(self, node: Get) -> Result:
         # TODO
@@ -251,18 +278,18 @@ class EvalVisitor:
 
     def evalFunc(self, node: Func) -> Result:
         # TODO capture avoiding substitution, nothing is evaluated so I *think* k and p are empty?
-        return V_closure(node.params, node.out, node.e, self.store().copy(), DEFAULT_CAP), C_ANY, set(), set()
+        return V_closure(node.params, node.out, node.e, self.store().copy(), DEFAULT_cap), C_ANY, set(), set()
 
     def evalUnary(self, node: Unary) -> Result:
         v, rw, k, p = node.e.eval(self)
         if node.op == Unop.NOT:
             if not isinstance(v, V_bool):
                 raise TypeError("expected bool")
-            return V_bool(not v.val), rw, set(), k.union(p)
+            return V_bool(not v.val), rw, k, p
         if node.op == Unop.NEG:
             if not isinstance(v, V_int):
                 raise TypeError("expected int")
-            return V_int(-1 * v.val), rw, set(), k.union(p)
+            return V_int(-1 * v.val), rw, k, p
         # TODO should return RW be C_ANY?
         # if node.op == Unop.DEREF:
         #     if not isinstance(v, V_ref):
@@ -315,10 +342,10 @@ class EvalVisitor:
             raise TypeError("unsupported op")
         # no refs in result
         # TODO what to do with r/w caps of both sides?
-        return res, C_ANY, set(), k1.union(k2).union(p1).union(p2)
+        return res, C_ANY, k1.union(k2), p1.union(p2)
 
     def evalCall(self, node: Call) -> Result:
-        cl = self.store().getVar(node.name).val
+        cl = self.store().getvar(node.name).val
         if not isinstance(cl, V_closure):
             raise TypeError("expected closure")
         argvs = [e.eval(self) for e in node.args]
@@ -341,7 +368,7 @@ class EvalVisitor:
     def evalBranch(self, node: Branch) -> Result:
         for v in node.vars:
             pass
-        tname = self.newThread()
+        tname = self.newthread()
         # branching symbol table
         with self.storeLock:
             self.st[tname] = SymbolTable(self.store())
@@ -353,14 +380,14 @@ class EvalVisitor:
     def evalPrint(self, node: Print) -> Result:
         v, rw, k, p = node.e.eval(self)
         print(str(v))
-        return V_unit(), C_ANY, set(), k.union(p)
+        return V_unit(), C_ANY, k, p
 
     def evalSleep(self, node: Print) -> Result:
         v, rw, k, p = node.e.eval(self)
         if not isinstance(v, V_int):
             raise TypeError("expected int")
         time.sleep(v.val)
-        return V_unit(), C_ANY, set(), k.union(p)
+        return V_unit(), C_ANY, k, p
 
     def evalInt(self, node: Int) -> Result:
         return V_int(node.val), C_ANY, set(), set()
@@ -372,7 +399,9 @@ class EvalVisitor:
         return V_unit(), C_ANY, set(), set()
 
     def evalVar(self, node: Var) -> Result:
-        return self.store().getVar(node.name).val
+        entry = self.store().getvar(node.name)
+        c = entry.capability
+        return entry.val, (c, c), {c}, set()
 
     def evalFocusGet(self, node: FocusGet) -> Result:
         raise Exception("unimplemented")

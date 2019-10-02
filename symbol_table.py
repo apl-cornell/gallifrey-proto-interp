@@ -26,84 +26,84 @@ class SymbolTable:
         self.vars: Dict[str, StoreEntry] = {}
         self.prev = prev
 
-    def newScope(self):
+    def newscope(self):
         new = SymbolTable(self)
         return new
 
-    def exitScope(self):
+    def exitscope(self):
         for c in self.caps:
             self.prev.caps.remove(c)
         for v in self.vars:
-            self.prev.addVar(v, self.vars[v], EntryStatus.SCOPE_ENDED)
+            self.prev.addvar(v, self.vars[v], EntryStatus.SCOPE_ENDED)
         return self.prev
 
-    def addVar(self, k: str, v: Value, c: str, status: EntryStatus = EntryStatus.NORMAL):
+    def addvar(self, k: str, v: Value, c: str, status: EntryStatus = EntryStatus.NORMAL):
         if self.containsVar(k):
             raise NameError("key {} already exists".format(k))
         v.capability = c
         self.vars[k] = StoreEntry(v, c, status)
 
-    def addCap(self, k: str):
-        if self.containsCap(k):
+    def addcap(self, k: str):
+        if self.containscap(k):
             raise NameError("capability {} already exists".format(k))
         self.caps.add(k)
 
-    def removeCap(self, k: str):
+    def removecap(self, k: str):
         self.caps.remove(k)
         if self.prev:
-            self.prev.removeCap(k)
+            self.prev.removecap(k)
 
-    def updateVar(self, k: str, status: EntryStatus):
+    def updatevar(self, k: str, status: EntryStatus):
         if k in self.vars:
             self.vars[k].status = status
         elif self.prev:
-            self.prev.updateVar(k, status)
+            self.prev.updatevar(k, status)
 
-    def getVar(self, k: str) -> StoreEntry:
+    def getvar(self, k: str) -> StoreEntry:
         if k in self.vars:
             if self.vars[k].status != EntryStatus.NORMAL:
                 raise Exception(self.vars[k].status)
             return self.vars[k]
         elif self.prev:
-            return self.prev.getVar(k)
+            return self.prev.getvar(k)
         else:
             raise NameError("key not found")
 
-    def containsCap(self, k: str) -> bool:
+    def containscap(self, k: str) -> bool:
         if k in self.caps:
             return True
         elif self.prev:
-            return self.prev.containsCap(k)
+            return self.prev.containscap(k)
         else:
             return False
 
-    def containsVar(self, k: str) -> bool:
+    def containsvar(self, k: str) -> bool:
         if k in self.vars:
             return True
         elif self.prev:
-            return self.prev.containsVar(k)
+            return self.prev.containsvar(k)
         else:
             return False
 
     def destroy(self, k: str):
-        c = self.getCap(k)
+        c = self.getcap(k)
         if c:
-            self.destroyCap(c)
+            self.destroycap(c)
 
-    def getCap(self, k: str):
+    def getcap(self, k: str):
         if k in self.vars:
             return self.vars[k].capability
         elif self.prev:
-            return self.prev.getCap(k)
+            return self.prev.getcap(k)
         else:
             return None
 
-    def destroyCap(self, k: str):
+    def destroycap(self, k: str):
         for v in self.vars:
             if self.vars[v].capability == k:
                 self.vars[v].status = EntryStatus.DESTROYED
         if self.prev:
-            self.prev.destroyCap(k)
+            self.prev.destroycap(k)
 
     def copy(self):
         # returns a new SymbolTable that is a copy of current
