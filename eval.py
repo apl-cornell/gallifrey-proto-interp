@@ -5,6 +5,8 @@ from threading import Thread, Lock, current_thread
 import time
 
 Result = Tuple[Value, Tuple[str, str], Set[str], Set[str]]
+Focus = str  # placeholder TODO
+FocusStack = List[Set[Focus]]
 
 
 class Cap:
@@ -136,8 +138,8 @@ class EvalVisitor:
     def __init__(self):
         t_name = current_thread().name
         self.st: Dict[str, SymbolTable] = {t_name: SymbolTable()}
-        self.focus: Dict[str, SymbolTable] = {t_name: SymbolTable()}
-        self.K: Dict[str, Set[str]] = {t_name: set()}  # input caps
+        # self.focus: Dict[str, SymbolTable] = {t_name: SymbolTable()}
+        # self.K: Dict[str, Set[str]] = {t_name: set()}  # input caps
         self.locations: Dict[int, Value] = {}  # refs, should be shared btwn threads
         self.lid = 0
         self.tid = 0
@@ -176,21 +178,9 @@ class EvalVisitor:
     def store(self):
         return self.st[current_thread().name]
 
-    def focus_stack(self):
-        return self.focus[current_thread().name]
-
-    def getK(self):
-        return self.K[current_thread().name]
-
-    def setK(self, x: Set[str]):
-        self.K[current_thread().name] = x
-
-    # TODO focus stack methods
-    # TODO set K, what do I do with K?
-
     # EVAL
 
-    def evalVarDecl(self, node: VarDecl) -> Result:
+    def evalVarDecl(self, node: VarDecl, K: Set[str], focus: FocusStack) -> Result:
         cap = self.newcap()
         self.store().addcap(cap)
         node.cap = cap
@@ -204,7 +194,7 @@ class EvalVisitor:
         self.store().addvar(node.var, v, node.cap)
         return node.e2.eval(self)
 
-    def evalIf(self, node: If) -> Result:
+    def evalIf(self, node: If, K: Set[str], focus: FocusStack) -> Result:
         vcond, rwcond, kcond, pcond = node.cond.eval(self)
         if not isinstance(vcond, V_bool):
             raise TypeError("if condition needs to be bool")
@@ -218,7 +208,7 @@ class EvalVisitor:
         self.exitscope()
         return v, (rw[0], Cap.NONE), k, p.union(kcond).union(pcond)
 
-    def evalWhile(self, node: While) -> Result:
+    def evalWhile(self, node: While, K: Set[str], focus: FocusStack) -> Result:
         vcond, rwcond, kcond, pcond = node.cond.eval(self)
         if not isinstance(vcond, V_bool):
             raise TypeError("if condition needs to be bool")
@@ -227,18 +217,18 @@ class EvalVisitor:
         self.exitscope()
         return V_unit(), C_ANY, set(), kcond.union(pcond).union(k).union(p)
 
-    def evalSeq(self, node: Seq) -> Result:
+    def evalSeq(self, node: Seq, K: Set[str], focus: FocusStack) -> Result:
         v1, rw1, k1, p1 = node.e1.eval(self)
         v2, rw2, k2, p2 = node.e2.eval(self)
         return v2, rw2, k2, k1.union(p1).union(p2)
 
-    # def evalRef(self, node: Ref) -> Result:
+    # def evalRef(self, node: Ref, K:Set[str], focus:FocusStack) -> Result:
     #     v = node.e.eval(self)
     #     l = self.newloc()
     #     self.locations[l] = v
     #     return V_ref(l, v.type, DEFAULT_cap)
 
-    def evalDestroy(self, node: Destroy) -> Result:
+    def evalDestroy(self, node: Destroy, K: Set[str], focus: FocusStack) -> Result:
 
         if isinstance(node.e, Var):
             v, rw, k, p = node.e.eval(self)
@@ -247,7 +237,7 @@ class EvalVisitor:
         else:
             raise Exception("not implemented!")
 
-    def evalAssign(self, node: Assign) -> Result:
+    def evalAssign(self, node: Assign, K: Set[str], focus: FocusStack) -> Result:
         v1 = node.e1.eval(self)
         if not isinstance(v1, V_ref):
             raise TypeError("expected ref")
@@ -257,7 +247,7 @@ class EvalVisitor:
         self.locations[v1.loc] = v2
         return v2
 
-    def evalObj(self, node: Obj) -> Result:
+    def evalObj(self, node: Obj, K: Set[str], focus: FocusStack) -> Result:
         # TODO
         v_fields = []
         for f in node.fields:
@@ -266,7 +256,7 @@ class EvalVisitor:
             v_fields.append((name, qualifier, v))
         return V_obj(v_fields, DEFAULT_cap)
 
-    def evalGet(self, node: Get) -> Result:
+    def evalGet(self, node: Get, K: Set[str], focus: FocusStack) -> Result:
         # TODO
         v = node.e.eval(self)
         n = node.name
@@ -276,11 +266,11 @@ class EvalVisitor:
             raise NameError("field {} does not exist".format(n))
         return v.fields[n][0]
 
-    def evalFunc(self, node: Func) -> Result:
+    def evalFunc(self, node: Func, K: Set[str], focus: FocusStack) -> Result:
         # TODO capture avoiding substitution, nothing is evaluated so I *think* k and p are empty?
         return V_closure(node.params, node.out, node.e, self.store().copy(), DEFAULT_cap), C_ANY, set(), set()
 
-    def evalUnary(self, node: Unary) -> Result:
+    def evalUnary(self, node: Unary, K: Set[str], focus: FocusStack) -> Result:
         v, rw, k, p = node.e.eval(self)
         if node.op == Unop.NOT:
             if not isinstance(v, V_bool):
@@ -296,8 +286,8 @@ class EvalVisitor:
         #         raise TypeError("expected ref")
         #     return self.locations[v.loc]
 
-    def evalBinary(self, node: Binary) -> Result:
-        v1, rw1, k1, p1 = node.e1.eval(self)
+    def evalBinary(self, node: Binary, K: Set[str], focus: FocusStack) -> Result:
+        v1, rw1, k1, p1 = node.e1.eval(self, K, focus)
         v2, rw2, k2, p2 = node.e2.eval(self)
         res = None
         if node.op in [Binop.PLUS, Binop.MINUS, Binop.TIMES, Binop.DIVIDE, Binop.MOD]:
@@ -344,7 +334,7 @@ class EvalVisitor:
         # TODO what to do with r/w caps of both sides?
         return res, C_ANY, k1.union(k2), p1.union(p2)
 
-    def evalCall(self, node: Call) -> Result:
+    def evalCall(self, node: Call, K: Set[str], focus: FocusStack) -> Result:
         cl = self.store().getvar(node.name).val
         if not isinstance(cl, V_closure):
             raise TypeError("expected closure")
@@ -365,7 +355,7 @@ class EvalVisitor:
         visitor.storeLock = self.storeLock
         return cl.e.eval(visitor)
 
-    def evalBranch(self, node: Branch) -> Result:
+    def evalBranch(self, node: Branch, K: Set[str], focus: FocusStack) -> Result:
         for v in node.vars:
             pass
         tname = self.newthread()
@@ -377,39 +367,39 @@ class EvalVisitor:
         # TODO
         return V_unit(), C_ANY, set(), set()
 
-    def evalPrint(self, node: Print) -> Result:
+    def evalPrint(self, node: Print, K: Set[str], focus: FocusStack) -> Result:
         v, rw, k, p = node.e.eval(self)
         print(str(v))
         return V_unit(), C_ANY, k, p
 
-    def evalSleep(self, node: Print) -> Result:
+    def evalSleep(self, node: Print, K: Set[str], focus: FocusStack) -> Result:
         v, rw, k, p = node.e.eval(self)
         if not isinstance(v, V_int):
             raise TypeError("expected int")
         time.sleep(v.val)
         return V_unit(), C_ANY, k, p
 
-    def evalInt(self, node: Int) -> Result:
+    def evalInt(self, node: Int, K: Set[str], focus: FocusStack) -> Result:
         return V_int(node.val), C_ANY, set(), set()
 
-    def evalBool(self, node: Bool) -> Result:
+    def evalBool(self, node: Bool, K: Set[str], focus: FocusStack) -> Result:
         return V_bool(node.val), C_ANY, set(), set()
 
-    def evalUnit(self, _node: Unit) -> Result:
+    def evalUnit(self, _node: Unit, K: Set[str], focus: FocusStack) -> Result:
         return V_unit(), C_ANY, set(), set()
 
-    def evalVar(self, node: Var) -> Result:
+    def evalVar(self, node: Var, K: Set[str], focus: FocusStack) -> Result:
         entry = self.store().getvar(node.name)
         c = entry.capability
         return entry.val, (c, c), {c}, set()
 
-    def evalFocusGet(self, node: FocusGet) -> Result:
+    def evalFocusGet(self, node: FocusGet, K: Set[str], focus: FocusStack) -> Result:
         raise Exception("unimplemented")
 
-    def evalFocus(self, node: Focus) -> Result:
+    def evalFocus(self, node: Focus, K: Set[str], focus: FocusStack) -> Result:
         raise Exception("unimplemented")
 
-    def handleThread(self, e: Expr):
-        e.eval(self)
+    def handleThread(self, e: Expr, K:Set[str], focus:FocusStack):
+        e.eval(self, K, focus)
         with self.storeLock:
             del self.st[self.tname()]

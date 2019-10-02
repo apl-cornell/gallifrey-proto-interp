@@ -38,7 +38,7 @@ class SymbolTable:
         return self.prev
 
     def addvar(self, k: str, v: Value, c: str, status: EntryStatus = EntryStatus.NORMAL):
-        if self.containsVar(k):
+        if self.containsvar(k):
             raise NameError("key {} already exists".format(k))
         v.capability = c
         self.vars[k] = StoreEntry(v, c, status)
