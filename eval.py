@@ -4,6 +4,16 @@ from symbol_table import SymbolTable, EntryStatus, StoreEntry
 from threading import Thread, Lock, current_thread
 import time
 
+Result = Tuple[Value, Tuple[str, str], Set[str], Set[str]]
+
+
+class Cap:
+    NONE = "@cap_C_NONE"
+    ANY = "@cap_C_ANY"
+
+# read and write any
+C_ANY = Cap.ANY, Cap.ANY
+DEFAULT_CAP = Cap.ANY
 
 # VALUES
 
@@ -58,6 +68,23 @@ class V_ref(Value):
         return (self.loc == other.loc) if isinstance(other, V_ref) else False
 
 
+class V_field(Value):
+    def __init__(self, name: str, q: Qualifier, v: Value, m: bool, c: str):
+        # TODO initialized with U/A cap
+        super().__init__(c if isinstance(q, Q_a) else c + name)
+        self.name = name
+        self.q = q
+        self.v = v
+        self.mut = m
+
+    def __str__(self):
+        # TODO
+        return "{}:{} {}".format(self.name, self.q, self.v) + (" MUT" if self.mut else "")
+
+    def __eq__(self, other):
+        return str(self) == str(other) if isinstance(other, V_field) else False
+
+
 class V_obj(Value):
     def __init__(self, fields: List[Tuple[str, Qualifier, Value]], c: str):
         super().__init__(c)
@@ -96,8 +123,8 @@ class V_closure(Value):
 class EvalVisitor:
 
     def __init__(self):
-        tname = current_thread().name
-        self.st = {tname: SymbolTable()}
+        t_name = current_thread().name
+        self.st = {t_name: SymbolTable()}
         self.locations: Dict[int, Value] = {}  # refs
         self.lid = 0
         self.tid = 0
@@ -137,14 +164,8 @@ class EvalVisitor:
         return self.st[current_thread().name]
 
     # EVAL
-    # def evalCapDecl(self, node: CapDecl) -> Value:
-    #     if self.store().containsCap(node.cap):
-    #         raise NameError("capability {} already defined".format(node.cap))
-    #     self.newScope()
-    #     self.store().addCap(node.cap)
-    #     return node.e.eval(self)
 
-    def evalVarDecl(self, node: VarDecl) -> Value:
+    def evalVarDecl(self, node: VarDecl) -> Result:
         cap = self.newCap()
         self.store().addCap(cap)
         node.cap = cap
@@ -158,42 +179,48 @@ class EvalVisitor:
         self.store().addVar(node.var, v, node.cap)
         return node.e2.eval(self)
 
-    def evalIf(self, node: If) -> Value:
-        vcond = node.cond.eval(self)
+    def evalIf(self, node: If) -> Result:
+        vcond, rwcond, kcond, pcond = node.cond.eval(self)
         if not isinstance(vcond, V_bool):
             raise TypeError("if condition needs to be bool")
         self.newScope()
-        v = node.e1.eval(self) if vcond.val else node.e2.eval(self)
+        # TODO do we need to eval both branches of if?
+        v, rw, k, p = None, None, None, None
+        if vcond.val:
+            v, rw, k, p = node.e1.eval(self)
+        else:
+            v, rw, k, p = node.e2.eval(self)
         self.exitScope()
-        return v
+        return v, (rw[0], Cap.NONE), k, p.union(kcond).union(pcond)
 
-    def evalWhile(self, node: While) -> Value:
-        vcond = node.cond.eval(self)
+    def evalWhile(self, node: While) -> Result:
+        vcond, rwcond, kcond, pcond = node.cond.eval(self)
         if not isinstance(vcond, V_bool):
             raise TypeError("if condition needs to be bool")
         self.newScope()
-        node.e.eval(self)
+        v, rw, k, p = node.e.eval(self)
         self.exitScope()
-        return V_unit()
+        return V_unit(), C_ANY, set(), kcond.union(pcond).union(k).union(p)
 
-    def evalSeq(self, node: Seq) -> Value:
-        node.e1.eval(self)
-        return node.e2.eval(self)
+    def evalSeq(self, node: Seq) -> Result:
+        v1, rw1, k1, p1 = node.e1.eval(self)
+        v2, rw2, k2, p2 = node.e2.eval(self)
+        return v2, rw2, k2, k1.union(p1).union(p2)
 
-    def evalRef(self, node: Ref) -> Value:
-        v = node.e.eval(self)
-        l = self.newLoc()
-        self.locations[l] = v
-        return V_ref(l, v.type, DEFAULT_CAP)
+    # def evalRef(self, node: Ref) -> Result:
+    #     v = node.e.eval(self)
+    #     l = self.newLoc()
+    #     self.locations[l] = v
+    #     return V_ref(l, v.type, DEFAULT_CAP)
 
-    def evalDestroy(self, node: Destroy) -> Value:
+    def evalDestroy(self, node: Destroy) -> Result:
         if isinstance(node.e, Var):
             self.store().destroy(node.e.name)
         else:
             raise Exception("not implemented!")
-        return V_unit()
+        return V_unit(),
 
-    def evalAssign(self, node: Assign) -> Value:
+    def evalAssign(self, node: Assign) -> Result:
         v1 = node.e1.eval(self)
         if not isinstance(v1, V_ref):
             raise TypeError("expected ref")
@@ -203,7 +230,8 @@ class EvalVisitor:
         self.locations[v1.loc] = v2
         return v2
 
-    def evalObj(self, node: Obj) -> Value:
+    def evalObj(self, node: Obj) -> Result:
+        # TODO
         v_fields = []
         for f in node.fields:
             name, qualifier, e = f
@@ -211,7 +239,8 @@ class EvalVisitor:
             v_fields.append((name, qualifier, v))
         return V_obj(v_fields, DEFAULT_CAP)
 
-    def evalGet(self, node: Get) -> Value:
+    def evalGet(self, node: Get) -> Result:
+        # TODO
         v = node.e.eval(self)
         n = node.name
         if not isinstance(v, V_obj):
@@ -220,69 +249,75 @@ class EvalVisitor:
             raise NameError("field {} does not exist".format(n))
         return v.fields[n][0]
 
-    def evalFunc(self, node: Func) -> Value:
-        # TODO capture avoiding substitution
-        return V_closure(node.params, node.out, node.e, self.store().copy(), DEFAULT_CAP)
+    def evalFunc(self, node: Func) -> Result:
+        # TODO capture avoiding substitution, nothing is evaluated so I *think* k and p are empty?
+        return V_closure(node.params, node.out, node.e, self.store().copy(), DEFAULT_CAP), C_ANY, set(), set()
 
-    def evalUnary(self, node: Unary) -> Value:
-        v = node.e.eval(self)
+    def evalUnary(self, node: Unary) -> Result:
+        v, rw, k, p = node.e.eval(self)
         if node.op == Unop.NOT:
             if not isinstance(v, V_bool):
                 raise TypeError("expected bool")
-            return V_bool(not v.val)
+            return V_bool(not v.val), rw, set(), k.union(p)
         if node.op == Unop.NEG:
             if not isinstance(v, V_int):
                 raise TypeError("expected int")
-            return V_int(-1 * v.val)
-        if node.op == Unop.DEREF:
-            if not isinstance(v, V_ref):
-                raise TypeError("expected ref")
-            return self.locations[v.loc]
+            return V_int(-1 * v.val), rw, set(), k.union(p)
+        # TODO should return RW be C_ANY?
+        # if node.op == Unop.DEREF:
+        #     if not isinstance(v, V_ref):
+        #         raise TypeError("expected ref")
+        #     return self.locations[v.loc]
 
-    def evalBinary(self, node: Binary) -> Value:
-        v1 = node.e1.eval(self)
-        v2 = node.e2.eval(self)
+    def evalBinary(self, node: Binary) -> Result:
+        v1, rw1, k1, p1 = node.e1.eval(self)
+        v2, rw2, k2, p2 = node.e2.eval(self)
+        res = None
         if node.op in [Binop.PLUS, Binop.MINUS, Binop.TIMES, Binop.DIVIDE, Binop.MOD]:
             if not isinstance(v1, V_int) or not isinstance(v2, V_int):
                 raise TypeError("expected ints")
             if node.op == Binop.PLUS:
-                return V_int(v1.val + v2.val)
+                res = V_int(v1.val + v2.val)
             elif node.op == Binop.MINUS:
-                return V_int(v1.val - v2.val)
+                res = V_int(v1.val - v2.val)
             elif node.op == Binop.TIMES:
-                return V_int(v1.val * v2.val)
+                res = V_int(v1.val * v2.val)
             elif node.op == Binop.DIVIDE:
-                return V_int(int(v1.val / v2.val))
+                res = V_int(int(v1.val / v2.val))
             elif node.op == Binop.MOD:
-                return V_int(v1.val % v2.val)
+                res = V_int(v1.val % v2.val)
         elif node.op in [Binop.AND, Binop.OR]:
             if not isinstance(v1, V_bool) or not isinstance(v2, V_bool):
                 raise TypeError("expected bools")
             elif node.op == Binop.AND:
-                return V_bool(v1.val and v2.val)
+                res = V_bool(v1.val and v2.val)
             elif node.op == Binop.OR:
-                return V_bool(v1.val or v2.val)
+                res = V_bool(v1.val or v2.val)
         elif node.op in [Binop.EQ, Binop.NEQ]:
             if v1.type != v2.type:
                 raise TypeError("expected same type")
             elif node.op == Binop.EQ:
-                return V_bool(v1 == v2)
+                res = V_bool(v1 == v2)
             elif node.op == Binop.NEQ:
-                return V_bool(v1 != v2)
+                res = V_bool(v1 != v2)
         elif node.op in [Binop.GT, Binop.LT, Binop.GTE, Binop.LTE]:
             if not isinstance(v1, V_int) or not isinstance(v2, V_int):
                 raise TypeError("expected ints")
             elif node.op == Binop.GT:
-                return V_bool(v1.val > v2.val)
+                res = V_bool(v1.val > v2.val)
             elif node.op == Binop.LT:
-                return V_bool(v1.val < v2.val)
+                res = V_bool(v1.val < v2.val)
             elif node.op == Binop.GTE:
-                return V_bool(v1.val >= v2.val)
+                res = V_bool(v1.val >= v2.val)
             elif node.op == Binop.LTE:
-                return V_bool(v1.val <= v2.val)
-        raise TypeError("unsupported op")
+                res = V_bool(v1.val <= v2.val)
+        if not res:
+            raise TypeError("unsupported op")
+        # no refs in result
+        # TODO what to do with r/w caps of both sides?
+        return res, C_ANY, set(), k1.union(k2).union(p1).union(p2)
 
-    def evalCall(self, node: Call) -> Value:
+    def evalCall(self, node: Call) -> Result:
         cl = self.store().getVar(node.name).val
         if not isinstance(cl, V_closure):
             raise TypeError("expected closure")
@@ -303,7 +338,7 @@ class EvalVisitor:
         visitor.storeLock = self.storeLock
         return cl.e.eval(visitor)
 
-    def evalBranch(self, node: Branch) -> Value:
+    def evalBranch(self, node: Branch) -> Result:
         for v in node.vars:
             pass
         tname = self.newThread()
@@ -312,35 +347,37 @@ class EvalVisitor:
             self.st[tname] = SymbolTable(self.store())
             self.st[self.tname()] = SymbolTable(self.store())
         t = Thread(name=tname, target=(lambda: self.handleThread(node.e))).start()
-        return V_unit()
+        # TODO
+        return V_unit(), C_ANY, set(), set()
 
-    def evalPrint(self, node: Print) -> Value:
-        v = node.e.eval(self)
+    def evalPrint(self, node: Print) -> Result:
+        v, rw, k, p = node.e.eval(self)
         print(str(v))
-        return V_unit()
+        return V_unit(), C_ANY, set(), k.union(p)
 
-    def evalSleep(self, node: Print) -> Value:
-        v = node.e.eval(self)
+    def evalSleep(self, node: Print) -> Result:
+        v, rw, k, p = node.e.eval(self)
         if not isinstance(v, V_int):
             raise TypeError("expected int")
         time.sleep(v.val)
+        return V_unit(), C_ANY, set(), k.union(p)
 
-    def evalInt(self, node: Int) -> Value:
-        return V_int(node.val)
+    def evalInt(self, node: Int) -> Result:
+        return V_int(node.val), C_ANY, set(), set()
 
-    def evalBool(self, node: Bool) -> Value:
-        return V_bool(node.val)
+    def evalBool(self, node: Bool) -> Result:
+        return V_bool(node.val), C_ANY, set(), set()
 
-    def evalUnit(self, node: Unit) -> Value:
-        return V_unit()
+    def evalUnit(self, _node: Unit) -> Result:
+        return V_unit(), C_ANY, set(), set()
 
-    def evalVar(self, node: Var) -> Value:
+    def evalVar(self, node: Var) -> Result:
         return self.store().getVar(node.name).val
 
-    def evalFocusGet(self, node: FocusGet) -> Value:
+    def evalFocusGet(self, node: FocusGet) -> Result:
         raise Exception("unimplemented")
 
-    def evalFocus(self, node: Focus) -> Value:
+    def evalFocus(self, node: Focus) -> Result:
         raise Exception("unimplemented")
 
     def handleThread(self, e: Expr):

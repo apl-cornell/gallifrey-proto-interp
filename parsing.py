@@ -61,7 +61,6 @@ def p_tlist_multi(p):
 
 def p_type_obj(p):
     '''type : LT paramlist GT'''
-    # TODO check for qualifier
     field_names = [x[0] for x in p[2]]
     if len(field_names) != len(set(field_names)):
         raise SyntaxError("duplicate field names")
@@ -90,20 +89,6 @@ def p_tfunc_none(p):
     p[0] = T_func([], p[3])
 
 
-# def p_qualifier_local(p):
-#     '''qualifier : LOCAL'''
-#     p[0] = Q_local()
-#
-#
-# def p_qualifier_borrowed(p):
-#     '''qualifier : BORROWED'''
-#     p[0] = Q_borrowed()
-#
-#
-# def p_qualifier_unique(p):
-#     '''qualifier : UNIQUE'''
-#     p[0] = Q_unique()
-
 def p_qualifier_a(p):
     '''qualifier : A'''
     p[0] = Q_a()
@@ -120,12 +105,6 @@ def p_qualifier_u(p):
 
 
 # STATEMENTS (commands)
-
-#
-# def p_cap_decl(p):
-#     '''expr : LET ID IN expr'''
-#     line = p.lineno(1)
-#     p[0] = CapDecl(p[2], p[4], line)
 
 
 def p_var_decl(p):
