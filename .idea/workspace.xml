@@ -2,9 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="3c4dc18d-af8b-46e2-b629-e98f13cfe952" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/cas_visitor.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ast.py" beforeDir="false" afterPath="$PROJECT_DIR$/ast.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cas_visitor.py" beforeDir="false" afterPath="$PROJECT_DIR$/cas_visitor.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/eval.py" beforeDir="false" afterPath="$PROJECT_DIR$/eval.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/symbol_table.py" beforeDir="false" afterPath="$PROJECT_DIR$/symbol_table.py" afterDir="false" />
     </list>
@@ -19,8 +19,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/ast.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="4140">
-              <caret line="276" column="9" selection-start-line="276" selection-start-column="6" selection-end-line="276" selection-end-column="9" />
+            <state relative-caret-position="3060">
+              <caret line="204" column="30" lean-forward="true" selection-start-line="204" selection-start-column="30" selection-end-line="204" selection-end-column="30" />
               <folding>
                 <element signature="e#0#41#0" expanded="true" />
               </folding>
@@ -31,8 +31,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/symbol_table.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-633">
-              <caret line="43" column="47" lean-forward="true" selection-start-line="43" selection-start-column="47" selection-end-line="43" selection-end-column="47" />
+            <state relative-caret-position="390">
+              <caret line="116" column="16" lean-forward="true" selection-start-line="116" selection-start-column="16" selection-end-line="116" selection-end-column="16" />
               <folding>
                 <element signature="e#0#17#0" expanded="true" />
               </folding>
@@ -66,23 +66,11 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/eval.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="349">
-              <caret line="290" column="44" lean-forward="true" selection-start-line="290" selection-start-column="44" selection-end-line="290" selection-end-column="44" />
-              <folding>
-                <element signature="e#0#17#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/cas_visitor.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="296">
-              <caret line="59" column="8" selection-start-line="59" selection-start-column="8" selection-end-line="59" selection-end-column="8" />
+            <state relative-caret-position="438">
+              <caret line="280" column="41" lean-forward="true" selection-start-line="280" selection-start-column="41" selection-end-line="280" selection-end-column="41" />
               <folding>
                 <element signature="e#0#17#0" expanded="true" />
               </folding>
@@ -94,12 +82,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>p_sleep</find>
-      <find>Print</find>
-      <find>print</find>
-      <find>int</find>
-      <find>decl</find>
-      <find>vardecl</find>
       <find>sleep</find>
       <find>while</find>
       <find>deref</find>
@@ -114,16 +96,22 @@
       <find>newscope</find>
       <find>cap.NONE</find>
       <find>focusget</find>
-      <find>cap</find>
       <find>(self)</find>
       <find>Func</find>
       <find>visit(self,</find>
       <find>call</find>
       <find>branch</find>
-      <find>-&gt; Result</find>
       <find>) -&gt; Result</find>
       <find>focus:List[Set[Focus]]</find>
+      <find>cap</find>
+      <find>-&gt; Result</find>
+      <find>evalFunc</find>
       <find>obj</find>
+      <find>K, focus)</find>
+      <find>k, focus) -&gt; Result:</find>
+      <find>K: Set[str], focus: FocusStack) -&gt; Result:</find>
+      <find>(self, k, focus)</find>
+      <find>assign_l</find>
     </findStrings>
     <replaceStrings>
       <replace>Expr.__init__(self, line)</replace>
@@ -140,10 +128,14 @@
       <replace>newscope</replace>
       <replace>Cap.NONE</replace>
       <replace>super().__init__()</replace>
-      <replace>cap</replace>
       <replace>(self)</replace>
+      <replace>cap</replace>
       <replace>focus:FocusStack</replace>
       <replace>accept(self,</replace>
+      <replace>K.copy(), focus[:])</replace>
+      <replace>k, focus, assign_l=False) -&gt; Result:</replace>
+      <replace>K: Set[str], focus: FocusStack, assign_l=False) -&gt; Result:</replace>
+      <replace>(self, k, focus, assign_l)</replace>
     </replaceStrings>
   </component>
   <component name="Git.Settings">
@@ -161,9 +153,9 @@
         <option value="$PROJECT_DIR$/lexing.py" />
         <option value="$PROJECT_DIR$/parsing.py" />
         <option value="$PROJECT_DIR$/symbol_table.py" />
+        <option value="$PROJECT_DIR$/cas_visitor.py" />
         <option value="$PROJECT_DIR$/ast.py" />
         <option value="$PROJECT_DIR$/eval.py" />
-        <option value="$PROJECT_DIR$/cas_visitor.py" />
       </list>
     </option>
   </component>
@@ -342,38 +334,35 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/symbol_table.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-633">
-          <caret line="43" column="47" lean-forward="true" selection-start-line="43" selection-start-column="47" selection-end-line="43" selection-end-column="47" />
+        <state relative-caret-position="390">
+          <caret line="116" column="16" lean-forward="true" selection-start-line="116" selection-start-column="16" selection-end-line="116" selection-end-column="16" />
           <folding>
             <element signature="e#0#17#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/eval.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="349">
-          <caret line="290" column="44" lean-forward="true" selection-start-line="290" selection-start-column="44" selection-end-line="290" selection-end-column="44" />
-          <folding>
-            <element signature="e#0#17#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/ast.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4140">
-          <caret line="276" column="9" selection-start-line="276" selection-start-column="6" selection-end-line="276" selection-end-column="9" />
-          <folding>
-            <element signature="e#0#41#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/cas_visitor.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="296">
-          <caret line="59" column="8" selection-start-line="59" selection-start-column="8" selection-end-line="59" selection-end-column="8" />
+        <state relative-caret-position="150">
+          <caret line="10" column="40" lean-forward="true" selection-start-line="10" selection-start-column="40" selection-end-line="10" selection-end-column="40" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/ast.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="3060">
+          <caret line="204" column="30" lean-forward="true" selection-start-line="204" selection-start-column="30" selection-end-line="204" selection-end-column="30" />
+          <folding>
+            <element signature="e#0#41#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/eval.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="438">
+          <caret line="280" column="41" lean-forward="true" selection-start-line="280" selection-start-column="41" selection-end-line="280" selection-end-column="41" />
           <folding>
             <element signature="e#0#17#0" expanded="true" />
           </folding>

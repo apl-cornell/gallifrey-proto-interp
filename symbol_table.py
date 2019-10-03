@@ -105,16 +105,18 @@ class SymbolTable:
         if self.prev:
             self.prev.destroycap(k)
 
-    def copy(self):
+    def copy(self, remove=[]):
         # returns a new SymbolTable that is a copy of current
         # this is a shallow copy of the dict values
         c = self.caps.copy()
         vars = {}
         for k in self.vars:
+            if k in remove:
+                continue
             vars[k] = self.vars[k].copy()
         p = None
         if self.prev:
-            p = self.prev.copy()
+            p = self.prev.copy(remove)
         new = SymbolTable(p)
         new.caps = c
         new.vars = vars

@@ -185,8 +185,8 @@ class VarDecl(Expr):
         self.e1 = e1
         self.e2 = e2
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalVarDecl(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalVarDecl(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalVarDecl(self)
@@ -199,8 +199,8 @@ class If(Expr):
         self.e1 = e1
         self.e2 = e2
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalIf(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalIf(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalIf(self)
@@ -212,8 +212,8 @@ class While(Expr):
         self.cond = cond
         self.e = e
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalWhile(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalWhile(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalWhile(self)
@@ -225,8 +225,8 @@ class Focus(Expr):
         self.focused = focused
         self.e = e
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalFocus(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalFocus(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalFocus(self)
@@ -238,8 +238,8 @@ class Seq(Expr):
         self.e1 = e1
         self.e2 = e2
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalSeq(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalSeq(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalSeq(self)
@@ -250,8 +250,8 @@ class Destroy(Expr):
         super().__init__(line)
         self.e = e
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalDestroy(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalDestroy(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalDestroy(self)
@@ -263,8 +263,8 @@ class Assign(Expr):
         self.e1 = e1
         self.e2 = e2
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalAssign(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalAssign(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalAssign(self)
@@ -279,8 +279,8 @@ class Obj(Expr):
         super().__init__(line)
         self.fields = [list(f) for f in fields]
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalObj(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalObj(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalObj(self)
@@ -292,8 +292,8 @@ class Get(Expr):
         self.e = e
         self.name = name
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalGet(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalGet(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalGet(self)
@@ -304,8 +304,8 @@ class FocusGet(Expr):
         super().__init__(line)
         self.name = name
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalFocusGet(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalFocusGet(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalFocusGet(self)
@@ -320,8 +320,8 @@ class Func(Expr):
         self.e = e
         self.out = t
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalFunc(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalFunc(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalFunc(self)
@@ -333,8 +333,8 @@ class Unary(Expr):
         self.op = op
         self.e = e
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalUnary(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalUnary(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalUnary(self)
@@ -347,8 +347,8 @@ class Binary(Expr):
         self.e1 = e1
         self.e2 = e2
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalBinary(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalBinary(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalBinary(self)
@@ -360,8 +360,8 @@ class Call(Expr):
         self.name = name
         self.args = args
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalCall(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalCall(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalCall(self)
@@ -373,8 +373,8 @@ class Branch(Expr):
         self.vars = vars_
         self.e = e
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalBranch(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalBranch(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalBranch(self)
@@ -385,8 +385,8 @@ class Int(Expr):
         super().__init__(line)
         self.val = val
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalInt(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalInt(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalInt(self)
@@ -397,8 +397,8 @@ class Bool(Expr):
         super().__init__(line)
         self.val = val
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalBool(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalBool(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalBool(self)
@@ -408,8 +408,8 @@ class Unit(Expr):
     def __init__(self, line: int):
         super().__init__(line)
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalUnit(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalUnit(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalUnit(self)
@@ -420,8 +420,8 @@ class Print(Expr):
         super().__init__(line)
         self.e = e
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalPrint(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalPrint(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalPrint(self)
@@ -432,8 +432,8 @@ class Sleep(Expr):
         super().__init__(line)
         self.e = e
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalSleep(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalSleep(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalSleep(self)
@@ -445,8 +445,8 @@ class Var(Expr):
         super().__init__(line)
         self.name = name
 
-    def eval(self, visitor, k, focus) -> Result:
-        return visitor.evalVar(self, k, focus)
+    def eval(self, visitor, k, focus, assign_l=False) -> Result:
+        return visitor.evalVar(self, k, focus, assign_l)
 
     def accept(self, visitor):
         visitor.evalVar(self)
