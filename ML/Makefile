@@ -1,14 +1,14 @@
-MAIN := imp
+MAIN := gallifrey
 OBJS := ast.cmo lexer.cmo parser.cmo pprint.cmo eval.cmo main.cmo
 
 %.cmo: %.ml
-	ocamlc -c $<
+	ocamlfind ocamlc -thread -package core -c $<
 
 %.cmi: %.mli
-	ocamlc -c $<
+	ocamlfind ocamlc -thread -package core -c $<
 
 $(MAIN): $(OBJS)
-	ocamlc -o $@ $^
+	ocamlfind ocamlc -thread -package core -o $@ $^
 
 lexer.ml: lexer.mll
 	ocamllex -q $<

@@ -62,23 +62,24 @@ rule token = parse
 | ","     { COMMA(info lexbuf) }
 | "true"  { TRUE(info lexbuf) }
 | "false" { FALSE(info lexbuf) }
-| "not"   { NOT(info lexbuf) }
-| "and"   { AND(info lexbuf) }
-| "or"    { OR(info lexbuf) }
-| "skip"  { SKIP(info lexbuf) }
+| "!"   { NOT(info lexbuf) }
+| "&"   { AND(info lexbuf) }
+| "|"    { OR(info lexbuf) }
+| "()"  { UNIT(info lexbuf) }
 | "if"    { IF(info lexbuf) }
-| "then"  { THEN(info lexbuf) }
 | "else"  { ELSE(info lexbuf) }
 | "while" { WHILE(info lexbuf) }
-| "do"    { DO(info lexbuf) }
 | "int"    { T_INT(info lexbuf) }
 | "bool"    { T_BOOL(info lexbuf) }
-| "fun"   { FUN(info lexbuf) }
-| "ref"    { REF(info lexbuf) }
-| "deref"    { DEREF(info lexbuf) }
+| "unit"  { T_UNIT(info lexbuf) }
+| "fun"   { LAMBDA(info lexbuf) }
 | "let"    { LET(info lexbuf) }
 | "in"    { IN(info lexbuf) }
 | "branch"    { BRANCH(info lexbuf) }
+| "destroy"    { DESTROY(info lexbuf) }
+| "focus"    { FOCUS(info lexbuf) }
+| "U"    { U(info lexbuf) }
+| "mut"    { MUT(info lexbuf) }
 | id as v { VAR(info lexbuf, v) }
 | digit+ as n { INT(info lexbuf, int_of_string n) }
 | eof     { EOF }

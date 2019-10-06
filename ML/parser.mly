@@ -3,7 +3,19 @@ open Ast
 open Printf
 open Lexing
 
+exception DuplicateField
+
 let merge (fn,pos1,_) (_,_,pos2) = (fn,pos1,pos2)
+
+let sort_field t_obj = 
+  let sorted = List.sort_uniq (fun (x,_,_) (y,_,_) -> String.compare x y) t_obj in
+  if List.length sorted <> List.length t_obj then raise DuplicateField
+  else sorted
+
+let sort_obj_field t_obj = 
+  let sorted = List.sort_uniq (fun (x,_,_,_) (y,_,_,_) -> String.compare x y) t_obj in
+  if List.length sorted <> List.length t_obj then raise DuplicateField
+  else sorted
 %}
 
 %token <Ast.info * int> INT
@@ -14,7 +26,8 @@ let merge (fn,pos1,_) (_,_,pos2) = (fn,pos1,pos2)
   NOT AND OR
   SKIP ASSIGN SEMI IF THEN ELSE WHILE DO
   LBRACE RBRACE
-  PRINT DELETE COMMA COLON ARROW FUN T_INT T_BOOL
+  PRINT COMMA COLON ARROW LAMBDA T_INT T_BOOL T_UNIT
+  BRANCH FOCUS U MUT SLEEP UNIT LET IN DESTROY
 %token EOF
 
 %nonassoc SEMI
@@ -24,6 +37,7 @@ let merge (fn,pos1,_) (_,_,pos2) = (fn,pos1,pos2)
 %right ARROW
 %right OR
 %right AND
+%nonassoc NOT
 %left NOTEQUALS EQUALS 
 %left LT LEQ GT GEQ
 %left PLUS MINUS
@@ -31,14 +45,15 @@ let merge (fn,pos1,_) (_,_,pos2) = (fn,pos1,pos2)
 %nonassoc DOT
 
 %type <Ast.expr> expr
-%type <Ast.expr> simple_expr
-%type <(Ast.var * Ast.gt) list> varlist
+%type <Ast.expr> p
+%type <(Ast.var * Ast.gtype * bool) list> paramlist
 %type <Ast.expr list> exprlist
-%type <string * Ast.expr> field_bind
-%type <(string * Ast.expr) list> fieldbindlist
-%type <Ast.command> c
-%type <Ast.command> p
-%type <Ast.gt> type
+%type <string * Ast.expr * bool * bool> field_bind
+%type <(string * Ast.expr * bool * bool) list> fieldbindlist
+%type <Ast.gtype> type
+%type <Ast.gtype list > typelist
+%type <string list> varlist
+
 
 %start p
 
@@ -48,20 +63,41 @@ let merge (fn,pos1,_) (_,_,pos2) = (fn,pos1,pos2)
 type :
 | T_INT {T_int}
 | T_BOOL {T_bool}
+| LT typelist ARROW type GT {T_func($2, $4)}
+| LT paramlist GT {T_obj(sort_field $2)}
+| T_UNIT {T_unit}
 
-varlist :
-| VAR COLON type {[(snd $1, $3)]}
-| VAR COLON type COMMA varlist {(snd $1, $3)::$5}
+typelist :
+| type {[$1]}
+| type COMMA typelist {$1 :: $3}
+
+varlist:
+| VAR {[snd $1]}
+| VAR COMMA varlist {(snd $1)::$3}
+
+paramlist :
+| VAR COLON type {[(snd $1, $3, false)]}
+| U VAR COLON type {[(snd $2, $4, true)]}
+| VAR COLON type COMMA paramlist {(snd $1, $3, false)::$5}
+| U VAR COLON type COMMA paramlist {(snd $2, $4, true)::$6}
 
 exprlist :
 | expr {[$1]}
 | expr COMMA exprlist {$1::$3}
+
+field_bind:
+  | VAR COLON expr { (snd $1, $3, false, false) }
+  | U VAR COLON expr { (snd $2, $4, true, false) }
+  | MUT VAR COLON expr { (snd $2, $4, false, true) }
+  | MUT U VAR COLON expr { (snd $3, $5, true, true) }
 
 fieldbindlist : 
 | field_bind {[$1]}
 | field_bind COMMA fieldbindlist {$1::$3}
 
 expr : 
+  | MINUS expr { Neg($2) }
+  | NOT expr { Not($2) }
   | expr AND expr { Binary(BinopAnd, $1, $3) }
   | expr OR expr { Binary(BinopOr, $1, $3) }
   | expr PLUS expr { Binary(BinopPlus, $1, $3) }
@@ -75,34 +111,24 @@ expr :
   | expr GEQ expr { Binary(BinopGeq, $1, $3) }
   | expr NOTEQUALS expr { Binary(BinopNeq, $1, $3) }
   | expr EQUALS expr { Binary(BinopEq, $1, $3) }
-  | FUN LPAREN varlist RPAREN ARROW expr 
-    { Fun($3, $6) }
-  | simple_expr LPAREN exprlist RPAREN {  Apply($1, $3) }
-  | simple_expr { $1 } 
-
-simple_expr : 
+  | LAMBDA LPAREN paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun($3, $6, $8) }
+  | VAR LPAREN exprlist RPAREN {  Apply(snd $1, $3) }
+  | DESTROY LPAREN expr RPAREN {  Destroy($3) }
+  | SLEEP LPAREN expr RPAREN {  Sleep($3) }
   | TRUE                 { Bool(true) }
   | FALSE                { Bool(false) }
   | INT                  { Int(snd $1) }
   | VAR                  { Var(snd $1) }
   | LPAREN expr RPAREN   { $2 }
-  | LBRACE fieldbindlist RBRACE { Object($2) }
-  | simple_expr DOT VAR { Get($1, snd $3) }
-
-field_bind:
-  | VAR COLON expr { (snd $1, $3) }
-
-/* Commands */
-c : ic SEMI c             { Seq($1, $3) }
-  | ic                    { $1 }
-
-ic: IF expr THEN ac ELSE ac  { If($2, $4, $6) }
-  | WHILE expr DO ac         { While($2, $4) }
-  | ac                    { $1 }
-
-ac: SKIP { Skip }
-  | simple_expr ASSIGN expr { Assign($1, $3) }
-
+  | LBRACE fieldbindlist RBRACE { Object(sort_obj_field $2) }
+  | expr DOT VAR { Get($1, snd $3) }
+  | expr SEMI expr             { Seq($1, $3) }
+  | IF expr LBRACE expr RBRACE ELSE LBRACE expr RBRACE  { If($2, $4, $8) }
+  | WHILE expr LBRACE expr RBRACE     { While($2, $4) }
+  | FOCUS expr LBRACE expr RBRACE     { Focus($2, $4) }
+  | BRANCH varlist LBRACE expr RBRACE     { Branch($2, $4) }
+  | expr ASSIGN expr { Assign($1, $3) }
+  
 /* Programs */
-p : c EOF                 { $1 }
+p : expr EOF                 { $1 }
 

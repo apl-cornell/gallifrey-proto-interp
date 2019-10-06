@@ -2,56 +2,68 @@
 
    1  type : T_INT
    2       | T_BOOL
+   3       | LT typelist ARROW type GT
+   4       | LT paramlist GT
+   5       | T_UNIT
 
-   3  varlist : VAR COLON type
-   4          | VAR COLON type COMMA varlist
+   6  typelist : type
+   7           | type COMMA typelist
 
-   5  exprlist : expr
-   6           | expr COMMA exprlist
+   8  varlist : VAR
+   9          | VAR COMMA varlist
 
-   7  fieldbindlist : field_bind
-   8                | field_bind COMMA fieldbindlist
+  10  paramlist : VAR COLON type
+  11            | U VAR COLON type
+  12            | VAR COLON type COMMA paramlist
+  13            | U VAR COLON type COMMA paramlist
 
-   9  expr : expr AND expr
-  10       | expr OR expr
-  11       | expr PLUS expr
-  12       | expr MINUS expr
-  13       | expr TIMES expr
-  14       | expr DIV expr
-  15       | expr MOD expr
-  16       | expr LT expr
-  17       | expr LEQ expr
-  18       | expr GT expr
-  19       | expr GEQ expr
-  20       | expr NOTEQUALS expr
-  21       | expr EQUALS expr
-  22       | FUN LPAREN varlist RPAREN ARROW expr
-  23       | simple_expr LPAREN exprlist RPAREN
-  24       | simple_expr
+  14  exprlist : expr
+  15           | expr COMMA exprlist
 
-  25  simple_expr : TRUE
-  26              | FALSE
-  27              | INT
-  28              | VAR
-  29              | LPAREN expr RPAREN
-  30              | LBRACE fieldbindlist RBRACE
-  31              | simple_expr DOT VAR
+  16  field_bind : VAR COLON expr
+  17             | U VAR COLON expr
+  18             | MUT VAR COLON expr
+  19             | MUT U VAR COLON expr
 
-  32  field_bind : VAR COLON expr
+  20  fieldbindlist : field_bind
+  21                | field_bind COMMA fieldbindlist
 
-  33  c : ic SEMI c
-  34    | ic
+  22  expr : MINUS expr
+  23       | NOT expr
+  24       | expr AND expr
+  25       | expr OR expr
+  26       | expr PLUS expr
+  27       | expr MINUS expr
+  28       | expr TIMES expr
+  29       | expr DIV expr
+  30       | expr MOD expr
+  31       | expr LT expr
+  32       | expr LEQ expr
+  33       | expr GT expr
+  34       | expr GEQ expr
+  35       | expr NOTEQUALS expr
+  36       | expr EQUALS expr
+  37       | LAMBDA LPAREN paramlist RPAREN ARROW type LBRACE expr RBRACE
+  38       | VAR LPAREN exprlist RPAREN
+  39       | DESTROY LPAREN expr RPAREN
+  40       | SLEEP LPAREN expr RPAREN
+  41       | TRUE
+  42       | FALSE
+  43       | INT
+  44       | VAR
+  45       | LPAREN expr RPAREN
+  46       | LBRACE fieldbindlist RBRACE
+  47       | expr DOT VAR
+  48       | expr SEMI expr
+  49       | IF expr LBRACE expr RBRACE ELSE LBRACE expr RBRACE
+  50       | WHILE expr LBRACE expr RBRACE
+  51       | FOCUS expr LBRACE expr RBRACE
+  52       | BRANCH varlist LBRACE expr RBRACE
+  53       | expr ASSIGN expr
 
-  35  ic : IF expr THEN ac ELSE ac
-  36     | WHILE expr DO ac
-  37     | ac
+  54  p : expr EOF
 
-  38  ac : SKIP
-  39     | simple_expr ASSIGN expr
-
-  40  p : c EOF
-
-  41  %entry% : '\001' p
+  55  %entry% : '\001' p
 
 state 0
 	$accept : . %entry% $end  (0)
@@ -63,24 +75,27 @@ state 0
 
 
 state 1
-	%entry% : '\001' . p  (41)
+	%entry% : '\001' . p  (55)
 
 	INT  shift 3
 	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	SKIP  shift 8
-	IF  shift 9
-	WHILE  shift 10
-	LBRACE  shift 11
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
 	.  error
 
-	simple_expr  goto 12
-	c  goto 13
-	p  goto 14
-	ic  goto 15
-	ac  goto 16
+	expr  goto 18
+	p  goto 19
 
 
 state 2
@@ -90,1399 +105,2791 @@ state 2
 
 
 state 3
-	simple_expr : INT .  (27)
+	expr : INT .  (43)
 
-	.  reduce 27
+	.  reduce 43
 
 
 state 4
-	simple_expr : VAR .  (28)
+	expr : VAR . LPAREN exprlist RPAREN  (38)
+	expr : VAR .  (44)
 
-	.  reduce 28
+	LPAREN  shift 20
+	PLUS  reduce 44
+	MINUS  reduce 44
+	TIMES  reduce 44
+	DIV  reduce 44
+	MOD  reduce 44
+	RPAREN  reduce 44
+	EQUALS  reduce 44
+	NOTEQUALS  reduce 44
+	LT  reduce 44
+	LEQ  reduce 44
+	GT  reduce 44
+	GEQ  reduce 44
+	AND  reduce 44
+	OR  reduce 44
+	ASSIGN  reduce 44
+	SEMI  reduce 44
+	LBRACE  reduce 44
+	RBRACE  reduce 44
+	COMMA  reduce 44
+	EOF  reduce 44
+	DOT  reduce 44
 
 
 state 5
-	simple_expr : LPAREN . expr RPAREN  (29)
+	expr : MINUS . expr  (22)
 
 	INT  shift 3
 	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 18
-	simple_expr  goto 19
-
-
-state 6
-	simple_expr : TRUE .  (25)
-
-	.  reduce 25
-
-
-state 7
-	simple_expr : FALSE .  (26)
-
-	.  reduce 26
-
-
-state 8
-	ac : SKIP .  (38)
-
-	.  reduce 38
-
-
-state 9
-	ic : IF . expr THEN ac ELSE ac  (35)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 20
-	simple_expr  goto 19
-
-
-state 10
-	ic : WHILE . expr DO ac  (36)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
 	.  error
 
 	expr  goto 21
-	simple_expr  goto 19
 
 
-state 11
-	simple_expr : LBRACE . fieldbindlist RBRACE  (30)
+state 6
+	expr : LPAREN . expr RPAREN  (45)
 
-	VAR  shift 22
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
 	.  error
 
-	field_bind  goto 23
-	fieldbindlist  goto 24
+	expr  goto 22
 
 
-state 12
-	simple_expr : simple_expr . DOT VAR  (31)
-	ac : simple_expr . ASSIGN expr  (39)
-
-	ASSIGN  shift 25
-	DOT  shift 26
-	.  error
-
-
-state 13
-	p : c . EOF  (40)
-
-	EOF  shift 27
-	.  error
-
-
-state 14
-	%entry% : '\001' p .  (41)
+state 7
+	expr : TRUE .  (41)
 
 	.  reduce 41
 
 
-state 15
-	c : ic . SEMI c  (33)
-	c : ic .  (34)
+state 8
+	expr : FALSE .  (42)
 
-	SEMI  shift 28
-	EOF  reduce 34
+	.  reduce 42
+
+
+state 9
+	expr : NOT . expr  (23)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 23
+
+
+state 10
+	expr : IF . expr LBRACE expr RBRACE ELSE LBRACE expr RBRACE  (49)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 24
+
+
+state 11
+	expr : WHILE . expr LBRACE expr RBRACE  (50)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 25
+
+
+state 12
+	expr : LBRACE . fieldbindlist RBRACE  (46)
+
+	VAR  shift 26
+	U  shift 27
+	MUT  shift 28
+	.  error
+
+	field_bind  goto 29
+	fieldbindlist  goto 30
+
+
+state 13
+	expr : LAMBDA . LPAREN paramlist RPAREN ARROW type LBRACE expr RBRACE  (37)
+
+	LPAREN  shift 31
+	.  error
+
+
+state 14
+	expr : BRANCH . varlist LBRACE expr RBRACE  (52)
+
+	VAR  shift 32
+	.  error
+
+	varlist  goto 33
+
+
+state 15
+	expr : FOCUS . expr LBRACE expr RBRACE  (51)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 34
 
 
 state 16
-	ic : ac .  (37)
+	expr : SLEEP . LPAREN expr RPAREN  (40)
 
-	.  reduce 37
+	LPAREN  shift 35
+	.  error
 
 
 state 17
-	expr : FUN . LPAREN varlist RPAREN ARROW expr  (22)
+	expr : DESTROY . LPAREN expr RPAREN  (39)
 
-	LPAREN  shift 29
+	LPAREN  shift 36
 	.  error
 
 
 state 18
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-	simple_expr : LPAREN expr . RPAREN  (29)
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+	p : expr . EOF  (54)
 
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	RPAREN  shift 35
-	EQUALS  shift 36
-	NOTEQUALS  shift 37
-	LT  shift 38
-	LEQ  shift 39
-	GT  shift 40
-	GEQ  shift 41
-	AND  shift 42
-	OR  shift 43
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	EOF  shift 52
+	DOT  shift 53
 	.  error
 
 
 state 19
-	expr : simple_expr . LPAREN exprlist RPAREN  (23)
-	expr : simple_expr .  (24)
-	simple_expr : simple_expr . DOT VAR  (31)
+	%entry% : '\001' p .  (55)
 
-	LPAREN  shift 44
-	DOT  shift 26
-	PLUS  reduce 24
-	MINUS  reduce 24
-	TIMES  reduce 24
-	DIV  reduce 24
-	MOD  reduce 24
-	RPAREN  reduce 24
-	EQUALS  reduce 24
-	NOTEQUALS  reduce 24
-	LT  reduce 24
-	LEQ  reduce 24
-	GT  reduce 24
-	GEQ  reduce 24
-	AND  reduce 24
-	OR  reduce 24
-	SEMI  reduce 24
-	THEN  reduce 24
-	ELSE  reduce 24
-	DO  reduce 24
-	RBRACE  reduce 24
-	COMMA  reduce 24
-	EOF  reduce 24
+	.  reduce 55
 
 
 state 20
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-	ic : IF expr . THEN ac ELSE ac  (35)
+	expr : VAR LPAREN . exprlist RPAREN  (38)
 
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	EQUALS  shift 36
-	NOTEQUALS  shift 37
-	LT  shift 38
-	LEQ  shift 39
-	GT  shift 40
-	GEQ  shift 41
-	AND  shift 42
-	OR  shift 43
-	THEN  shift 45
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
 	.  error
+
+	expr  goto 54
+	exprlist  goto 55
 
 
 state 21
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-	ic : WHILE expr . DO ac  (36)
-
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	EQUALS  shift 36
-	NOTEQUALS  shift 37
-	LT  shift 38
-	LEQ  shift 39
-	GT  shift 40
-	GEQ  shift 41
-	AND  shift 42
-	OR  shift 43
-	DO  shift 46
-	.  error
-
-
-state 22
-	field_bind : VAR . COLON expr  (32)
-
-	COLON  shift 47
-	.  error
-
-
-state 23
-	fieldbindlist : field_bind .  (7)
-	fieldbindlist : field_bind . COMMA fieldbindlist  (8)
-
-	COMMA  shift 48
-	RBRACE  reduce 7
-
-
-state 24
-	simple_expr : LBRACE fieldbindlist . RBRACE  (30)
-
-	RBRACE  shift 49
-	.  error
-
-
-state 25
-	ac : simple_expr ASSIGN . expr  (39)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 50
-	simple_expr  goto 19
-
-
-state 26
-	simple_expr : simple_expr DOT . VAR  (31)
-
-	VAR  shift 51
-	.  error
-
-
-state 27
-	p : c EOF .  (40)
-
-	.  reduce 40
-
-
-state 28
-	c : ic SEMI . c  (33)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	SKIP  shift 8
-	IF  shift 9
-	WHILE  shift 10
-	LBRACE  shift 11
-	.  error
-
-	simple_expr  goto 12
-	c  goto 52
-	ic  goto 15
-	ac  goto 16
-
-
-state 29
-	expr : FUN LPAREN . varlist RPAREN ARROW expr  (22)
-
-	VAR  shift 53
-	.  error
-
-	varlist  goto 54
-
-
-state 30
-	expr : expr PLUS . expr  (11)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 55
-	simple_expr  goto 19
-
-
-state 31
-	expr : expr MINUS . expr  (12)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 56
-	simple_expr  goto 19
-
-
-state 32
-	expr : expr TIMES . expr  (13)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 57
-	simple_expr  goto 19
-
-
-state 33
-	expr : expr DIV . expr  (14)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 58
-	simple_expr  goto 19
-
-
-state 34
-	expr : expr MOD . expr  (15)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 59
-	simple_expr  goto 19
-
-
-state 35
-	simple_expr : LPAREN expr RPAREN .  (29)
-
-	.  reduce 29
-
-
-state 36
-	expr : expr EQUALS . expr  (21)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 60
-	simple_expr  goto 19
-
-
-state 37
-	expr : expr NOTEQUALS . expr  (20)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 61
-	simple_expr  goto 19
-
-
-state 38
-	expr : expr LT . expr  (16)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 62
-	simple_expr  goto 19
-
-
-state 39
-	expr : expr LEQ . expr  (17)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 63
-	simple_expr  goto 19
-
-
-state 40
-	expr : expr GT . expr  (18)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 64
-	simple_expr  goto 19
-
-
-state 41
-	expr : expr GEQ . expr  (19)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 65
-	simple_expr  goto 19
-
-
-state 42
-	expr : expr AND . expr  (9)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 66
-	simple_expr  goto 19
-
-
-state 43
-	expr : expr OR . expr  (10)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 67
-	simple_expr  goto 19
-
-
-state 44
-	expr : simple_expr LPAREN . exprlist RPAREN  (23)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 68
-	simple_expr  goto 19
-	exprlist  goto 69
-
-
-state 45
-	ic : IF expr THEN . ac ELSE ac  (35)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	SKIP  shift 8
-	LBRACE  shift 11
-	.  error
-
-	simple_expr  goto 12
-	ac  goto 70
-
-
-state 46
-	ic : WHILE expr DO . ac  (36)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	SKIP  shift 8
-	LBRACE  shift 11
-	.  error
-
-	simple_expr  goto 12
-	ac  goto 71
-
-
-state 47
-	field_bind : VAR COLON . expr  (32)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 72
-	simple_expr  goto 19
-
-
-state 48
-	fieldbindlist : field_bind COMMA . fieldbindlist  (8)
-
-	VAR  shift 22
-	.  error
-
-	field_bind  goto 23
-	fieldbindlist  goto 73
-
-
-state 49
-	simple_expr : LBRACE fieldbindlist RBRACE .  (30)
-
-	.  reduce 30
-
-
-state 50
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-	ac : simple_expr ASSIGN expr .  (39)
-
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	EQUALS  shift 36
-	NOTEQUALS  shift 37
-	LT  shift 38
-	LEQ  shift 39
-	GT  shift 40
-	GEQ  shift 41
-	AND  shift 42
-	OR  shift 43
-	SEMI  reduce 39
-	ELSE  reduce 39
-	EOF  reduce 39
-
-
-state 51
-	simple_expr : simple_expr DOT VAR .  (31)
-
-	.  reduce 31
-
-
-state 52
-	c : ic SEMI c .  (33)
-
-	.  reduce 33
-
-
-state 53
-	varlist : VAR . COLON type  (3)
-	varlist : VAR . COLON type COMMA varlist  (4)
-
-	COLON  shift 74
-	.  error
-
-
-state 54
-	expr : FUN LPAREN varlist . RPAREN ARROW expr  (22)
-
-	RPAREN  shift 75
-	.  error
-
-
-state 55
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr PLUS expr .  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	PLUS  reduce 11
-	MINUS  reduce 11
-	RPAREN  reduce 11
-	EQUALS  reduce 11
-	NOTEQUALS  reduce 11
-	LT  reduce 11
-	LEQ  reduce 11
-	GT  reduce 11
-	GEQ  reduce 11
-	AND  reduce 11
-	OR  reduce 11
-	SEMI  reduce 11
-	THEN  reduce 11
-	ELSE  reduce 11
-	DO  reduce 11
-	RBRACE  reduce 11
-	COMMA  reduce 11
-	EOF  reduce 11
-
-
-state 56
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr MINUS expr .  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	PLUS  reduce 12
-	MINUS  reduce 12
-	RPAREN  reduce 12
-	EQUALS  reduce 12
-	NOTEQUALS  reduce 12
-	LT  reduce 12
-	LEQ  reduce 12
-	GT  reduce 12
-	GEQ  reduce 12
-	AND  reduce 12
-	OR  reduce 12
-	SEMI  reduce 12
-	THEN  reduce 12
-	ELSE  reduce 12
-	DO  reduce 12
-	RBRACE  reduce 12
-	COMMA  reduce 12
-	EOF  reduce 12
-
-
-state 57
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr TIMES expr .  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-
-	.  reduce 13
-
-
-state 58
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr DIV expr .  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-
-	.  reduce 14
-
-
-state 59
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr MOD expr .  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-
-	.  reduce 15
-
-
-state 60
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-	expr : expr EQUALS expr .  (21)
-
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	LT  shift 38
-	LEQ  shift 39
-	GT  shift 40
-	GEQ  shift 41
-	RPAREN  reduce 21
-	EQUALS  reduce 21
-	NOTEQUALS  reduce 21
-	AND  reduce 21
-	OR  reduce 21
-	SEMI  reduce 21
-	THEN  reduce 21
-	ELSE  reduce 21
-	DO  reduce 21
-	RBRACE  reduce 21
-	COMMA  reduce 21
-	EOF  reduce 21
-
-
-state 61
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr NOTEQUALS expr .  (20)
-	expr : expr . EQUALS expr  (21)
-
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	LT  shift 38
-	LEQ  shift 39
-	GT  shift 40
-	GEQ  shift 41
-	RPAREN  reduce 20
-	EQUALS  reduce 20
-	NOTEQUALS  reduce 20
-	AND  reduce 20
-	OR  reduce 20
-	SEMI  reduce 20
-	THEN  reduce 20
-	ELSE  reduce 20
-	DO  reduce 20
-	RBRACE  reduce 20
-	COMMA  reduce 20
-	EOF  reduce 20
-
-
-state 62
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr LT expr .  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	RPAREN  reduce 16
-	EQUALS  reduce 16
-	NOTEQUALS  reduce 16
-	LT  reduce 16
-	LEQ  reduce 16
-	GT  reduce 16
-	GEQ  reduce 16
-	AND  reduce 16
-	OR  reduce 16
-	SEMI  reduce 16
-	THEN  reduce 16
-	ELSE  reduce 16
-	DO  reduce 16
-	RBRACE  reduce 16
-	COMMA  reduce 16
-	EOF  reduce 16
-
-
-state 63
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr LEQ expr .  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	RPAREN  reduce 17
-	EQUALS  reduce 17
-	NOTEQUALS  reduce 17
-	LT  reduce 17
-	LEQ  reduce 17
-	GT  reduce 17
-	GEQ  reduce 17
-	AND  reduce 17
-	OR  reduce 17
-	SEMI  reduce 17
-	THEN  reduce 17
-	ELSE  reduce 17
-	DO  reduce 17
-	RBRACE  reduce 17
-	COMMA  reduce 17
-	EOF  reduce 17
-
-
-state 64
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr GT expr .  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	RPAREN  reduce 18
-	EQUALS  reduce 18
-	NOTEQUALS  reduce 18
-	LT  reduce 18
-	LEQ  reduce 18
-	GT  reduce 18
-	GEQ  reduce 18
-	AND  reduce 18
-	OR  reduce 18
-	SEMI  reduce 18
-	THEN  reduce 18
-	ELSE  reduce 18
-	DO  reduce 18
-	RBRACE  reduce 18
-	COMMA  reduce 18
-	EOF  reduce 18
-
-
-state 65
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr GEQ expr .  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	RPAREN  reduce 19
-	EQUALS  reduce 19
-	NOTEQUALS  reduce 19
-	LT  reduce 19
-	LEQ  reduce 19
-	GT  reduce 19
-	GEQ  reduce 19
-	AND  reduce 19
-	OR  reduce 19
-	SEMI  reduce 19
-	THEN  reduce 19
-	ELSE  reduce 19
-	DO  reduce 19
-	RBRACE  reduce 19
-	COMMA  reduce 19
-	EOF  reduce 19
-
-
-state 66
-	expr : expr . AND expr  (9)
-	expr : expr AND expr .  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	EQUALS  shift 36
-	NOTEQUALS  shift 37
-	LT  shift 38
-	LEQ  shift 39
-	GT  shift 40
-	GEQ  shift 41
-	AND  shift 42
-	RPAREN  reduce 9
-	OR  reduce 9
-	SEMI  reduce 9
-	THEN  reduce 9
-	ELSE  reduce 9
-	DO  reduce 9
-	RBRACE  reduce 9
-	COMMA  reduce 9
-	EOF  reduce 9
-
-
-state 67
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr OR expr .  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	EQUALS  shift 36
-	NOTEQUALS  shift 37
-	LT  shift 38
-	LEQ  shift 39
-	GT  shift 40
-	GEQ  shift 41
-	AND  shift 42
-	OR  shift 43
-	RPAREN  reduce 10
-	SEMI  reduce 10
-	THEN  reduce 10
-	ELSE  reduce 10
-	DO  reduce 10
-	RBRACE  reduce 10
-	COMMA  reduce 10
-	EOF  reduce 10
-
-
-state 68
-	exprlist : expr .  (5)
-	exprlist : expr . COMMA exprlist  (6)
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	EQUALS  shift 36
-	NOTEQUALS  shift 37
-	LT  shift 38
-	LEQ  shift 39
-	GT  shift 40
-	GEQ  shift 41
-	AND  shift 42
-	OR  shift 43
-	COMMA  shift 76
-	RPAREN  reduce 5
-
-
-state 69
-	expr : simple_expr LPAREN exprlist . RPAREN  (23)
-
-	RPAREN  shift 77
-	.  error
-
-
-state 70
-	ic : IF expr THEN ac . ELSE ac  (35)
-
-	ELSE  shift 78
-	.  error
-
-
-state 71
-	ic : WHILE expr DO ac .  (36)
-
-	.  reduce 36
-
-
-state 72
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-	field_bind : VAR COLON expr .  (32)
-
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	EQUALS  shift 36
-	NOTEQUALS  shift 37
-	LT  shift 38
-	LEQ  shift 39
-	GT  shift 40
-	GEQ  shift 41
-	AND  shift 42
-	OR  shift 43
-	RBRACE  reduce 32
-	COMMA  reduce 32
-
-
-state 73
-	fieldbindlist : field_bind COMMA fieldbindlist .  (8)
-
-	.  reduce 8
-
-
-state 74
-	varlist : VAR COLON . type  (3)
-	varlist : VAR COLON . type COMMA varlist  (4)
-
-	T_INT  shift 79
-	T_BOOL  shift 80
-	.  error
-
-	type  goto 81
-
-
-state 75
-	expr : FUN LPAREN varlist RPAREN . ARROW expr  (22)
-
-	ARROW  shift 82
-	.  error
-
-
-state 76
-	exprlist : expr COMMA . exprlist  (6)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 68
-	simple_expr  goto 19
-	exprlist  goto 83
-
-
-state 77
-	expr : simple_expr LPAREN exprlist RPAREN .  (23)
-
-	.  reduce 23
-
-
-state 78
-	ic : IF expr THEN ac ELSE . ac  (35)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	SKIP  shift 8
-	LBRACE  shift 11
-	.  error
-
-	simple_expr  goto 12
-	ac  goto 84
-
-
-state 79
-	type : T_INT .  (1)
-
-	.  reduce 1
-
-
-state 80
-	type : T_BOOL .  (2)
-
-	.  reduce 2
-
-
-state 81
-	varlist : VAR COLON type .  (3)
-	varlist : VAR COLON type . COMMA varlist  (4)
-
-	COMMA  shift 85
-	RPAREN  reduce 3
-
-
-state 82
-	expr : FUN LPAREN varlist RPAREN ARROW . expr  (22)
-
-	INT  shift 3
-	VAR  shift 4
-	LPAREN  shift 5
-	TRUE  shift 6
-	FALSE  shift 7
-	LBRACE  shift 11
-	FUN  shift 17
-	.  error
-
-	expr  goto 86
-	simple_expr  goto 19
-
-
-state 83
-	exprlist : expr COMMA exprlist .  (6)
-
-	.  reduce 6
-
-
-state 84
-	ic : IF expr THEN ac ELSE ac .  (35)
-
-	.  reduce 35
-
-
-state 85
-	varlist : VAR COLON type COMMA . varlist  (4)
-
-	VAR  shift 53
-	.  error
-
-	varlist  goto 87
-
-
-state 86
-	expr : expr . AND expr  (9)
-	expr : expr . OR expr  (10)
-	expr : expr . PLUS expr  (11)
-	expr : expr . MINUS expr  (12)
-	expr : expr . TIMES expr  (13)
-	expr : expr . DIV expr  (14)
-	expr : expr . MOD expr  (15)
-	expr : expr . LT expr  (16)
-	expr : expr . LEQ expr  (17)
-	expr : expr . GT expr  (18)
-	expr : expr . GEQ expr  (19)
-	expr : expr . NOTEQUALS expr  (20)
-	expr : expr . EQUALS expr  (21)
-	expr : FUN LPAREN varlist RPAREN ARROW expr .  (22)
-
-	PLUS  shift 30
-	MINUS  shift 31
-	TIMES  shift 32
-	DIV  shift 33
-	MOD  shift 34
-	EQUALS  shift 36
-	NOTEQUALS  shift 37
-	LT  shift 38
-	LEQ  shift 39
-	GT  shift 40
-	GEQ  shift 41
-	AND  shift 42
-	OR  shift 43
+	expr : MINUS expr .  (22)
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	DOT  shift 53
+	PLUS  reduce 22
+	MINUS  reduce 22
 	RPAREN  reduce 22
+	EQUALS  reduce 22
+	NOTEQUALS  reduce 22
+	LT  reduce 22
+	LEQ  reduce 22
+	GT  reduce 22
+	GEQ  reduce 22
+	AND  reduce 22
+	OR  reduce 22
+	ASSIGN  reduce 22
 	SEMI  reduce 22
-	THEN  reduce 22
-	ELSE  reduce 22
-	DO  reduce 22
+	LBRACE  reduce 22
 	RBRACE  reduce 22
 	COMMA  reduce 22
 	EOF  reduce 22
 
 
+state 22
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : LPAREN expr . RPAREN  (45)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	RPAREN  shift 56
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	DOT  shift 53
+	.  error
+
+
+state 23
+	expr : NOT expr .  (23)
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	DOT  shift 53
+	RPAREN  reduce 23
+	AND  reduce 23
+	OR  reduce 23
+	ASSIGN  reduce 23
+	SEMI  reduce 23
+	LBRACE  reduce 23
+	RBRACE  reduce 23
+	COMMA  reduce 23
+	EOF  reduce 23
+
+
+state 24
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : IF expr . LBRACE expr RBRACE ELSE LBRACE expr RBRACE  (49)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	LBRACE  shift 57
+	DOT  shift 53
+	.  error
+
+
+state 25
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : WHILE expr . LBRACE expr RBRACE  (50)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	LBRACE  shift 58
+	DOT  shift 53
+	.  error
+
+
+state 26
+	field_bind : VAR . COLON expr  (16)
+
+	COLON  shift 59
+	.  error
+
+
+state 27
+	field_bind : U . VAR COLON expr  (17)
+
+	VAR  shift 60
+	.  error
+
+
+state 28
+	field_bind : MUT . VAR COLON expr  (18)
+	field_bind : MUT . U VAR COLON expr  (19)
+
+	VAR  shift 61
+	U  shift 62
+	.  error
+
+
+state 29
+	fieldbindlist : field_bind .  (20)
+	fieldbindlist : field_bind . COMMA fieldbindlist  (21)
+
+	COMMA  shift 63
+	RBRACE  reduce 20
+
+
+state 30
+	expr : LBRACE fieldbindlist . RBRACE  (46)
+
+	RBRACE  shift 64
+	.  error
+
+
+state 31
+	expr : LAMBDA LPAREN . paramlist RPAREN ARROW type LBRACE expr RBRACE  (37)
+
+	VAR  shift 65
+	U  shift 66
+	.  error
+
+	paramlist  goto 67
+
+
+state 32
+	varlist : VAR .  (8)
+	varlist : VAR . COMMA varlist  (9)
+
+	COMMA  shift 68
+	LBRACE  reduce 8
+
+
+state 33
+	expr : BRANCH varlist . LBRACE expr RBRACE  (52)
+
+	LBRACE  shift 69
+	.  error
+
+
+state 34
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : FOCUS expr . LBRACE expr RBRACE  (51)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	LBRACE  shift 70
+	DOT  shift 53
+	.  error
+
+
+state 35
+	expr : SLEEP LPAREN . expr RPAREN  (40)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 71
+
+
+state 36
+	expr : DESTROY LPAREN . expr RPAREN  (39)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 72
+
+
+state 37
+	expr : expr PLUS . expr  (26)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 73
+
+
+state 38
+	expr : expr MINUS . expr  (27)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 74
+
+
+state 39
+	expr : expr TIMES . expr  (28)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 75
+
+
+state 40
+	expr : expr DIV . expr  (29)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 76
+
+
+state 41
+	expr : expr MOD . expr  (30)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 77
+
+
+state 42
+	expr : expr EQUALS . expr  (36)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 78
+
+
+state 43
+	expr : expr NOTEQUALS . expr  (35)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 79
+
+
+state 44
+	expr : expr LT . expr  (31)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 80
+
+
+state 45
+	expr : expr LEQ . expr  (32)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 81
+
+
+state 46
+	expr : expr GT . expr  (33)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 82
+
+
+state 47
+	expr : expr GEQ . expr  (34)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 83
+
+
+state 48
+	expr : expr AND . expr  (24)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 84
+
+
+state 49
+	expr : expr OR . expr  (25)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 85
+
+
+state 50
+	expr : expr ASSIGN . expr  (53)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 86
+
+
+state 51
+	expr : expr SEMI . expr  (48)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 87
+
+
+state 52
+	p : expr EOF .  (54)
+
+	.  reduce 54
+
+
+state 53
+	expr : expr DOT . VAR  (47)
+
+	VAR  shift 88
+	.  error
+
+
+state 54
+	exprlist : expr .  (14)
+	exprlist : expr . COMMA exprlist  (15)
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	COMMA  shift 89
+	DOT  shift 53
+	RPAREN  reduce 14
+
+
+state 55
+	expr : VAR LPAREN exprlist . RPAREN  (38)
+
+	RPAREN  shift 90
+	.  error
+
+
+state 56
+	expr : LPAREN expr RPAREN .  (45)
+
+	.  reduce 45
+
+
+state 57
+	expr : IF expr LBRACE . expr RBRACE ELSE LBRACE expr RBRACE  (49)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 91
+
+
+state 58
+	expr : WHILE expr LBRACE . expr RBRACE  (50)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 92
+
+
+state 59
+	field_bind : VAR COLON . expr  (16)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 93
+
+
+state 60
+	field_bind : U VAR . COLON expr  (17)
+
+	COLON  shift 94
+	.  error
+
+
+state 61
+	field_bind : MUT VAR . COLON expr  (18)
+
+	COLON  shift 95
+	.  error
+
+
+state 62
+	field_bind : MUT U . VAR COLON expr  (19)
+
+	VAR  shift 96
+	.  error
+
+
+state 63
+	fieldbindlist : field_bind COMMA . fieldbindlist  (21)
+
+	VAR  shift 26
+	U  shift 27
+	MUT  shift 28
+	.  error
+
+	field_bind  goto 29
+	fieldbindlist  goto 97
+
+
+state 64
+	expr : LBRACE fieldbindlist RBRACE .  (46)
+
+	.  reduce 46
+
+
+state 65
+	paramlist : VAR . COLON type  (10)
+	paramlist : VAR . COLON type COMMA paramlist  (12)
+
+	COLON  shift 98
+	.  error
+
+
+state 66
+	paramlist : U . VAR COLON type  (11)
+	paramlist : U . VAR COLON type COMMA paramlist  (13)
+
+	VAR  shift 99
+	.  error
+
+
+state 67
+	expr : LAMBDA LPAREN paramlist . RPAREN ARROW type LBRACE expr RBRACE  (37)
+
+	RPAREN  shift 100
+	.  error
+
+
+state 68
+	varlist : VAR COMMA . varlist  (9)
+
+	VAR  shift 32
+	.  error
+
+	varlist  goto 101
+
+
+state 69
+	expr : BRANCH varlist LBRACE . expr RBRACE  (52)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 102
+
+
+state 70
+	expr : FOCUS expr LBRACE . expr RBRACE  (51)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 103
+
+
+state 71
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : SLEEP LPAREN expr . RPAREN  (40)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	RPAREN  shift 104
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	DOT  shift 53
+	.  error
+
+
+state 72
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : DESTROY LPAREN expr . RPAREN  (39)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	RPAREN  shift 105
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	DOT  shift 53
+	.  error
+
+
+state 73
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr PLUS expr .  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	DOT  shift 53
+	PLUS  reduce 26
+	MINUS  reduce 26
+	RPAREN  reduce 26
+	EQUALS  reduce 26
+	NOTEQUALS  reduce 26
+	LT  reduce 26
+	LEQ  reduce 26
+	GT  reduce 26
+	GEQ  reduce 26
+	AND  reduce 26
+	OR  reduce 26
+	ASSIGN  reduce 26
+	SEMI  reduce 26
+	LBRACE  reduce 26
+	RBRACE  reduce 26
+	COMMA  reduce 26
+	EOF  reduce 26
+
+
+state 74
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr MINUS expr .  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	DOT  shift 53
+	PLUS  reduce 27
+	MINUS  reduce 27
+	RPAREN  reduce 27
+	EQUALS  reduce 27
+	NOTEQUALS  reduce 27
+	LT  reduce 27
+	LEQ  reduce 27
+	GT  reduce 27
+	GEQ  reduce 27
+	AND  reduce 27
+	OR  reduce 27
+	ASSIGN  reduce 27
+	SEMI  reduce 27
+	LBRACE  reduce 27
+	RBRACE  reduce 27
+	COMMA  reduce 27
+	EOF  reduce 27
+
+
+state 75
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr TIMES expr .  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	DOT  shift 53
+	PLUS  reduce 28
+	MINUS  reduce 28
+	TIMES  reduce 28
+	DIV  reduce 28
+	MOD  reduce 28
+	RPAREN  reduce 28
+	EQUALS  reduce 28
+	NOTEQUALS  reduce 28
+	LT  reduce 28
+	LEQ  reduce 28
+	GT  reduce 28
+	GEQ  reduce 28
+	AND  reduce 28
+	OR  reduce 28
+	ASSIGN  reduce 28
+	SEMI  reduce 28
+	LBRACE  reduce 28
+	RBRACE  reduce 28
+	COMMA  reduce 28
+	EOF  reduce 28
+
+
+state 76
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr DIV expr .  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	DOT  shift 53
+	PLUS  reduce 29
+	MINUS  reduce 29
+	TIMES  reduce 29
+	DIV  reduce 29
+	MOD  reduce 29
+	RPAREN  reduce 29
+	EQUALS  reduce 29
+	NOTEQUALS  reduce 29
+	LT  reduce 29
+	LEQ  reduce 29
+	GT  reduce 29
+	GEQ  reduce 29
+	AND  reduce 29
+	OR  reduce 29
+	ASSIGN  reduce 29
+	SEMI  reduce 29
+	LBRACE  reduce 29
+	RBRACE  reduce 29
+	COMMA  reduce 29
+	EOF  reduce 29
+
+
+state 77
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr MOD expr .  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	DOT  shift 53
+	PLUS  reduce 30
+	MINUS  reduce 30
+	TIMES  reduce 30
+	DIV  reduce 30
+	MOD  reduce 30
+	RPAREN  reduce 30
+	EQUALS  reduce 30
+	NOTEQUALS  reduce 30
+	LT  reduce 30
+	LEQ  reduce 30
+	GT  reduce 30
+	GEQ  reduce 30
+	AND  reduce 30
+	OR  reduce 30
+	ASSIGN  reduce 30
+	SEMI  reduce 30
+	LBRACE  reduce 30
+	RBRACE  reduce 30
+	COMMA  reduce 30
+	EOF  reduce 30
+
+
+state 78
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr EQUALS expr .  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	DOT  shift 53
+	RPAREN  reduce 36
+	EQUALS  reduce 36
+	NOTEQUALS  reduce 36
+	AND  reduce 36
+	OR  reduce 36
+	ASSIGN  reduce 36
+	SEMI  reduce 36
+	LBRACE  reduce 36
+	RBRACE  reduce 36
+	COMMA  reduce 36
+	EOF  reduce 36
+
+
+state 79
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr NOTEQUALS expr .  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	DOT  shift 53
+	RPAREN  reduce 35
+	EQUALS  reduce 35
+	NOTEQUALS  reduce 35
+	AND  reduce 35
+	OR  reduce 35
+	ASSIGN  reduce 35
+	SEMI  reduce 35
+	LBRACE  reduce 35
+	RBRACE  reduce 35
+	COMMA  reduce 35
+	EOF  reduce 35
+
+
+state 80
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr LT expr .  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	DOT  shift 53
+	RPAREN  reduce 31
+	EQUALS  reduce 31
+	NOTEQUALS  reduce 31
+	LT  reduce 31
+	LEQ  reduce 31
+	GT  reduce 31
+	GEQ  reduce 31
+	AND  reduce 31
+	OR  reduce 31
+	ASSIGN  reduce 31
+	SEMI  reduce 31
+	LBRACE  reduce 31
+	RBRACE  reduce 31
+	COMMA  reduce 31
+	EOF  reduce 31
+
+
+state 81
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr LEQ expr .  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	DOT  shift 53
+	RPAREN  reduce 32
+	EQUALS  reduce 32
+	NOTEQUALS  reduce 32
+	LT  reduce 32
+	LEQ  reduce 32
+	GT  reduce 32
+	GEQ  reduce 32
+	AND  reduce 32
+	OR  reduce 32
+	ASSIGN  reduce 32
+	SEMI  reduce 32
+	LBRACE  reduce 32
+	RBRACE  reduce 32
+	COMMA  reduce 32
+	EOF  reduce 32
+
+
+state 82
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr GT expr .  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	DOT  shift 53
+	RPAREN  reduce 33
+	EQUALS  reduce 33
+	NOTEQUALS  reduce 33
+	LT  reduce 33
+	LEQ  reduce 33
+	GT  reduce 33
+	GEQ  reduce 33
+	AND  reduce 33
+	OR  reduce 33
+	ASSIGN  reduce 33
+	SEMI  reduce 33
+	LBRACE  reduce 33
+	RBRACE  reduce 33
+	COMMA  reduce 33
+	EOF  reduce 33
+
+
+state 83
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr GEQ expr .  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	DOT  shift 53
+	RPAREN  reduce 34
+	EQUALS  reduce 34
+	NOTEQUALS  reduce 34
+	LT  reduce 34
+	LEQ  reduce 34
+	GT  reduce 34
+	GEQ  reduce 34
+	AND  reduce 34
+	OR  reduce 34
+	ASSIGN  reduce 34
+	SEMI  reduce 34
+	LBRACE  reduce 34
+	RBRACE  reduce 34
+	COMMA  reduce 34
+	EOF  reduce 34
+
+
+state 84
+	expr : expr . AND expr  (24)
+	expr : expr AND expr .  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	DOT  shift 53
+	RPAREN  reduce 24
+	OR  reduce 24
+	ASSIGN  reduce 24
+	SEMI  reduce 24
+	LBRACE  reduce 24
+	RBRACE  reduce 24
+	COMMA  reduce 24
+	EOF  reduce 24
+
+
+state 85
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr OR expr .  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	DOT  shift 53
+	RPAREN  reduce 25
+	ASSIGN  reduce 25
+	SEMI  reduce 25
+	LBRACE  reduce 25
+	RBRACE  reduce 25
+	COMMA  reduce 25
+	EOF  reduce 25
+
+
+state 86
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+	expr : expr ASSIGN expr .  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	DOT  shift 53
+	RPAREN  reduce 53
+	SEMI  reduce 53
+	LBRACE  reduce 53
+	RBRACE  reduce 53
+	COMMA  reduce 53
+	EOF  reduce 53
+
+
 state 87
-	varlist : VAR COLON type COMMA varlist .  (4)
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr SEMI expr .  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	DOT  shift 53
+	RPAREN  reduce 48
+	LBRACE  reduce 48
+	RBRACE  reduce 48
+	COMMA  reduce 48
+	EOF  reduce 48
+
+
+state 88
+	expr : expr DOT VAR .  (47)
+
+	.  reduce 47
+
+
+state 89
+	exprlist : expr COMMA . exprlist  (15)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 54
+	exprlist  goto 106
+
+
+state 90
+	expr : VAR LPAREN exprlist RPAREN .  (38)
+
+	.  reduce 38
+
+
+state 91
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : IF expr LBRACE expr . RBRACE ELSE LBRACE expr RBRACE  (49)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	RBRACE  shift 107
+	DOT  shift 53
+	.  error
+
+
+state 92
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : WHILE expr LBRACE expr . RBRACE  (50)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	RBRACE  shift 108
+	DOT  shift 53
+	.  error
+
+
+state 93
+	field_bind : VAR COLON expr .  (16)
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	DOT  shift 53
+	RBRACE  reduce 16
+	COMMA  reduce 16
+
+
+state 94
+	field_bind : U VAR COLON . expr  (17)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 109
+
+
+state 95
+	field_bind : MUT VAR COLON . expr  (18)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 110
+
+
+state 96
+	field_bind : MUT U VAR . COLON expr  (19)
+
+	COLON  shift 111
+	.  error
+
+
+state 97
+	fieldbindlist : field_bind COMMA fieldbindlist .  (21)
+
+	.  reduce 21
+
+
+state 98
+	paramlist : VAR COLON . type  (10)
+	paramlist : VAR COLON . type COMMA paramlist  (12)
+
+	LT  shift 112
+	T_INT  shift 113
+	T_BOOL  shift 114
+	T_UNIT  shift 115
+	.  error
+
+	type  goto 116
+
+
+state 99
+	paramlist : U VAR . COLON type  (11)
+	paramlist : U VAR . COLON type COMMA paramlist  (13)
+
+	COLON  shift 117
+	.  error
+
+
+state 100
+	expr : LAMBDA LPAREN paramlist RPAREN . ARROW type LBRACE expr RBRACE  (37)
+
+	ARROW  shift 118
+	.  error
+
+
+state 101
+	varlist : VAR COMMA varlist .  (9)
+
+	.  reduce 9
+
+
+state 102
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : BRANCH varlist LBRACE expr . RBRACE  (52)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	RBRACE  shift 119
+	DOT  shift 53
+	.  error
+
+
+state 103
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : FOCUS expr LBRACE expr . RBRACE  (51)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	RBRACE  shift 120
+	DOT  shift 53
+	.  error
+
+
+state 104
+	expr : SLEEP LPAREN expr RPAREN .  (40)
+
+	.  reduce 40
+
+
+state 105
+	expr : DESTROY LPAREN expr RPAREN .  (39)
+
+	.  reduce 39
+
+
+state 106
+	exprlist : expr COMMA exprlist .  (15)
+
+	.  reduce 15
+
+
+state 107
+	expr : IF expr LBRACE expr RBRACE . ELSE LBRACE expr RBRACE  (49)
+
+	ELSE  shift 121
+	.  error
+
+
+state 108
+	expr : WHILE expr LBRACE expr RBRACE .  (50)
+
+	.  reduce 50
+
+
+state 109
+	field_bind : U VAR COLON expr .  (17)
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	DOT  shift 53
+	RBRACE  reduce 17
+	COMMA  reduce 17
+
+
+state 110
+	field_bind : MUT VAR COLON expr .  (18)
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	DOT  shift 53
+	RBRACE  reduce 18
+	COMMA  reduce 18
+
+
+state 111
+	field_bind : MUT U VAR COLON . expr  (19)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 122
+
+
+state 112
+	type : LT . typelist ARROW type GT  (3)
+	type : LT . paramlist GT  (4)
+
+	VAR  shift 65
+	LT  shift 112
+	T_INT  shift 113
+	T_BOOL  shift 114
+	T_UNIT  shift 115
+	U  shift 66
+	.  error
+
+	paramlist  goto 123
+	type  goto 124
+	typelist  goto 125
+
+
+state 113
+	type : T_INT .  (1)
+
+	.  reduce 1
+
+
+state 114
+	type : T_BOOL .  (2)
+
+	.  reduce 2
+
+
+state 115
+	type : T_UNIT .  (5)
+
+	.  reduce 5
+
+
+state 116
+	paramlist : VAR COLON type .  (10)
+	paramlist : VAR COLON type . COMMA paramlist  (12)
+
+	COMMA  shift 126
+	RPAREN  reduce 10
+	GT  reduce 10
+
+
+state 117
+	paramlist : U VAR COLON . type  (11)
+	paramlist : U VAR COLON . type COMMA paramlist  (13)
+
+	LT  shift 112
+	T_INT  shift 113
+	T_BOOL  shift 114
+	T_UNIT  shift 115
+	.  error
+
+	type  goto 127
+
+
+state 118
+	expr : LAMBDA LPAREN paramlist RPAREN ARROW . type LBRACE expr RBRACE  (37)
+
+	LT  shift 112
+	T_INT  shift 113
+	T_BOOL  shift 114
+	T_UNIT  shift 115
+	.  error
+
+	type  goto 128
+
+
+state 119
+	expr : BRANCH varlist LBRACE expr RBRACE .  (52)
+
+	.  reduce 52
+
+
+state 120
+	expr : FOCUS expr LBRACE expr RBRACE .  (51)
+
+	.  reduce 51
+
+
+state 121
+	expr : IF expr LBRACE expr RBRACE ELSE . LBRACE expr RBRACE  (49)
+
+	LBRACE  shift 129
+	.  error
+
+
+state 122
+	field_bind : MUT U VAR COLON expr .  (19)
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	DOT  shift 53
+	RBRACE  reduce 19
+	COMMA  reduce 19
+
+
+state 123
+	type : LT paramlist . GT  (4)
+
+	GT  shift 130
+	.  error
+
+
+state 124
+	typelist : type .  (6)
+	typelist : type . COMMA typelist  (7)
+
+	COMMA  shift 131
+	ARROW  reduce 6
+
+
+state 125
+	type : LT typelist . ARROW type GT  (3)
+
+	ARROW  shift 132
+	.  error
+
+
+state 126
+	paramlist : VAR COLON type COMMA . paramlist  (12)
+
+	VAR  shift 65
+	U  shift 66
+	.  error
+
+	paramlist  goto 133
+
+
+state 127
+	paramlist : U VAR COLON type .  (11)
+	paramlist : U VAR COLON type . COMMA paramlist  (13)
+
+	COMMA  shift 134
+	RPAREN  reduce 11
+	GT  reduce 11
+
+
+state 128
+	expr : LAMBDA LPAREN paramlist RPAREN ARROW type . LBRACE expr RBRACE  (37)
+
+	LBRACE  shift 135
+	.  error
+
+
+state 129
+	expr : IF expr LBRACE expr RBRACE ELSE LBRACE . expr RBRACE  (49)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 136
+
+
+state 130
+	type : LT paramlist GT .  (4)
 
 	.  reduce 4
 
 
-43 terminals, 13 nonterminals
-42 grammar rules, 88 states
+state 131
+	typelist : type COMMA . typelist  (7)
+
+	LT  shift 112
+	T_INT  shift 113
+	T_BOOL  shift 114
+	T_UNIT  shift 115
+	.  error
+
+	type  goto 124
+	typelist  goto 137
+
+
+state 132
+	type : LT typelist ARROW . type GT  (3)
+
+	LT  shift 112
+	T_INT  shift 113
+	T_BOOL  shift 114
+	T_UNIT  shift 115
+	.  error
+
+	type  goto 138
+
+
+state 133
+	paramlist : VAR COLON type COMMA paramlist .  (12)
+
+	.  reduce 12
+
+
+state 134
+	paramlist : U VAR COLON type COMMA . paramlist  (13)
+
+	VAR  shift 65
+	U  shift 66
+	.  error
+
+	paramlist  goto 139
+
+
+state 135
+	expr : LAMBDA LPAREN paramlist RPAREN ARROW type LBRACE . expr RBRACE  (37)
+
+	INT  shift 3
+	VAR  shift 4
+	MINUS  shift 5
+	LPAREN  shift 6
+	TRUE  shift 7
+	FALSE  shift 8
+	NOT  shift 9
+	IF  shift 10
+	WHILE  shift 11
+	LBRACE  shift 12
+	LAMBDA  shift 13
+	BRANCH  shift 14
+	FOCUS  shift 15
+	SLEEP  shift 16
+	DESTROY  shift 17
+	.  error
+
+	expr  goto 140
+
+
+state 136
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : IF expr LBRACE expr RBRACE ELSE LBRACE expr . RBRACE  (49)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	RBRACE  shift 141
+	DOT  shift 53
+	.  error
+
+
+state 137
+	typelist : type COMMA typelist .  (7)
+
+	.  reduce 7
+
+
+state 138
+	type : LT typelist ARROW type . GT  (3)
+
+	GT  shift 142
+	.  error
+
+
+state 139
+	paramlist : U VAR COLON type COMMA paramlist .  (13)
+
+	.  reduce 13
+
+
+state 140
+	expr : expr . AND expr  (24)
+	expr : expr . OR expr  (25)
+	expr : expr . PLUS expr  (26)
+	expr : expr . MINUS expr  (27)
+	expr : expr . TIMES expr  (28)
+	expr : expr . DIV expr  (29)
+	expr : expr . MOD expr  (30)
+	expr : expr . LT expr  (31)
+	expr : expr . LEQ expr  (32)
+	expr : expr . GT expr  (33)
+	expr : expr . GEQ expr  (34)
+	expr : expr . NOTEQUALS expr  (35)
+	expr : expr . EQUALS expr  (36)
+	expr : LAMBDA LPAREN paramlist RPAREN ARROW type LBRACE expr . RBRACE  (37)
+	expr : expr . DOT VAR  (47)
+	expr : expr . SEMI expr  (48)
+	expr : expr . ASSIGN expr  (53)
+
+	PLUS  shift 37
+	MINUS  shift 38
+	TIMES  shift 39
+	DIV  shift 40
+	MOD  shift 41
+	EQUALS  shift 42
+	NOTEQUALS  shift 43
+	LT  shift 44
+	LEQ  shift 45
+	GT  shift 46
+	GEQ  shift 47
+	AND  shift 48
+	OR  shift 49
+	ASSIGN  shift 50
+	SEMI  shift 51
+	RBRACE  shift 143
+	DOT  shift 53
+	.  error
+
+
+state 141
+	expr : IF expr LBRACE expr RBRACE ELSE LBRACE expr RBRACE .  (49)
+
+	.  reduce 49
+
+
+state 142
+	type : LT typelist ARROW type GT .  (3)
+
+	.  reduce 3
+
+
+state 143
+	expr : LAMBDA LPAREN paramlist RPAREN ARROW type LBRACE expr RBRACE .  (37)
+
+	.  reduce 37
+
+
+52 terminals, 11 nonterminals
+56 grammar rules, 144 states

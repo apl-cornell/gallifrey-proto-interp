@@ -4,45 +4,45 @@
 
 open Ast
 
-(* let sp = Printf.sprintf
+let sp = Printf.sprintf
+let rec space n = if n = 0 then "" else " " ^ space (n-1)
 
-let rec pprintAexp a = print_string(strAexp a)
-and pprintBexp b = print_string(strBexp b)
-and pprintCom c = print_string(strCom(0, c))
-and pprintInfo i = print_string(strInfo i)
-and space n = if n = 0 then "" else " " ^ space(n-1)
-and strAexp e = match e with
-  | Int m -> sp "%d" m
-  | Var x -> x
-  | Plus(a1, a2) -> sp "(%s + %s)" (strAexp a1) (strAexp a2)
-  | Minus(a1, a2) -> sp "(%s - %s)" (strAexp a1) (strAexp a2)
-  | Times(a1, a2) -> sp "(%s * %s)" (strAexp a1) (strAexp a2)
-  | Input -> "input"
-and strBexp e = match e with
-  | True -> "true"
-  | False -> "false"
-  | Equals(a1, a2) -> sp "(%s = %s)" (strAexp a1) (strAexp a2)
-  | NotEquals(a1, a2) -> sp "(%s != %s)" (strAexp a1) (strAexp a2)
-  | Less(a1, a2) -> sp "(%s < %s)" (strAexp a1) (strAexp a2)
-  | LessEq(a1, a2) -> sp "(%s <= %s)" (strAexp a1) (strAexp a2)
-  | Greater(a1, a2) -> sp "(%s > %s)" (strAexp a1) (strAexp a2)
-  | GreaterEq(a1, a2) -> sp "(%s >= %s)" (strAexp a1) (strAexp a2)
-  | Not(b) -> sp "not(%s)" (strBexp b)
-  | And(b1, b2) -> sp "(%s and %s)" (strBexp b1) (strBexp b2)
-  | Or(b1, b2) -> sp "(%s or %s)" (strBexp b1) (strBexp b2)
-and strCom(n, c) =
+let print_list f l =
+  List.map l f |> String.concat ", "
+
+let rec print_ast n c = 
   match c with
-  | Skip -> sp "%sskip" (space n)
-  | Assign(x, a) -> sp "%s%s := %s" (space n) x (strAexp a)
-  | Seq(c1, c2) -> sp "%s;\n%s" (strCom(n, c1)) (strCom(n, c2))
-  | If(b, c1, c2) ->
-    sp "%sif %s then {\n%s\n%s} else {\n%s\n%s}"
-      (space(n)) (strBexp b)
-      (strCom(n+2,c1)) (space n) (strCom(n+2,c2)) (space n)
-  | While(b, c) ->
-    sp "%swhile %s do {\n%s\n%s}"
-      (space n) (strBexp b) (strCom(n+2,c)) (space n)
-and strInfo ((l1,c1),(l2,c2)) =
-  if l2=l1
-  then Printf.sprintf "line %d, characters %d-%d" l1 c1 c2
-  else Printf.sprintf "line %d, character %d, to line %d, character %d" l1 c1 l2 c2 *)
+  |Int i -> sp "%d" i
+  |Bool b -> if b then "true" else "false"
+  |Unit -> "()"
+  |Var v -> v
+  |Binary(b, e1, e2) -> sp "%s %s %s" (print_ast 0 e1) (print_binop b) (print_ast 0 e2)
+  |Fun(p,r,e) -> sp "function"
+  |Apply(a,b) -> "apply"   
+  |Object o -> "object"
+  |Get(e,f) -> sp "%s.%s" (print_ast 0 e) f
+  |Seq(e1, e2) -> sp "%s;\n%s" (print_ast n e1) (print_ast n e2)
+  |If(c, e1, e2) -> sp "%sif (%s) {\n%s\n} else {\n%s\n}" (space n) (print_ast 0 c) (print_ast (n+2) e1) (print_ast (n+2) e2)
+  |While(c, e) -> sp "%swhile (%s) {\n%s\n}" (space n) (print_ast 0 c) (print_ast (n+2) e)
+  |Let(v, e1, e2) -> sp "%slet %s := %s in %s" (space n) v (print_ast 0 e1) (print_ast 0 e2)
+  |Destroy e -> sp "destroy(%s)" (print_ast 0 e)
+  |Sleep e -> sp "sleep(%s)" (print_ast 0 e)
+  |Branch(v,e) -> sp "%sbranch" (space n)
+  |Focus(e1, e2) -> sp "%sfocus (%s) {\n%s\n}" (space n) (print_ast 0 e1) (print_ast (n+2) e2)
+  |Assign(e1, e2) -> sp "%s%s := %s" (space n) (print_ast 0 e1) (print_ast 0 e2)
+  |Neg e -> sp "-%s" (print_ast 0 e)
+  |Not e -> sp "!%s" (print_ast 0 e)
+and print_binop = function
+  | BinopAnd -> "&"
+  | BinopOr -> "|"
+  | BinopPlus -> "+"
+  | BinopMinus -> "-"
+  | BinopTimes -> "*"
+  | BinopDiv -> "/"
+  | BinopMod -> "%"
+  | BinopLt -> "<"
+  | BinopLeq -> "<="
+  | BinopGt -> ">"
+  | BinopGeq -> ">="
+  | BinopNeq -> "!="
+  | BinopEq -> "=="
