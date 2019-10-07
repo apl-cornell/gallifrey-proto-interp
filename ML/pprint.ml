@@ -1,7 +1,3 @@
-(* CS 4110 Homework 3
-   A pretty-printer for the ASTs defined in ast.ml. This is useful for
-   debugging, but you should not need to change it. *)
-
 open Ast
 
 let sp = Printf.sprintf
