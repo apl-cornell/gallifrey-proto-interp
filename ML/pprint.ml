@@ -1,4 +1,5 @@
 open Ast
+open Eval
 
 let sp = Printf.sprintf
 let rec space n = if n = 0 then "" else " " ^ space (n-1)
@@ -42,3 +43,11 @@ and print_binop = function
   | BinopGeq -> ">="
   | BinopNeq -> "!="
   | BinopEq -> "=="
+
+let print_value v = 
+  match v with
+  |V_int i -> print_endline (string_of_int i)
+  |V_bool b -> print_endline (string_of_bool b)
+  |V_unit -> print_endline "()"
+  |V_obj o -> print_endline "<object>"
+  |V_fun(ps, ret, e, closure) -> print_endline "<closure>"
