@@ -31,6 +31,7 @@ let rec fmt_ast n c =
   |Assign(e1, e2) -> sp "%s%s := %s" (space n) (fmt_ast 0 e1) (fmt_ast 0 e2)
   |Neg e -> sp "-%s" (fmt_ast 0 e)
   |Not e -> sp "!%s" (fmt_ast 0 e)
+  |Class(c,t) -> sp "%sclass %s {%s}" (space n) c (fmt_type t)
 and print_binop = function
   | BinopAnd -> "&"
   | BinopOr -> "|"
@@ -45,16 +46,14 @@ and print_binop = function
   | BinopGeq -> ">="
   | BinopNeq -> "!="
   | BinopEq -> "=="
-
-let fmt_value v = 
+and fmt_value v = 
   match v with
   |V_int i -> (string_of_int i)
   |V_bool b -> (string_of_bool b)
   |V_unit -> "()"
   |V_obj o -> "<object>"
   |V_fun(ps, ret, e, closure) -> "<closure>"
-
-let rec fmt_type t = 
+and fmt_type t = 
   match t with
   | T_unit -> "unit"
   | T_int -> "int"

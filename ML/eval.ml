@@ -23,9 +23,9 @@ type value =
 and t_store = (var, storeinfo) Hashtbl.t
 and loc = int
 (* type, capability, mutable, location *)
-and storeinfo = (gtype * cap * bool * loc)
+and storeinfo = (gtype * cap * mut * loc)
 (* type, unique, mutable, location *)
-and fieldinfo = (gtype * bool * bool * loc)
+and fieldinfo = (gtype * unique * mut * loc)
 and memory = (loc, value) Hashtbl.t
 
 let get_type = function
@@ -205,7 +205,7 @@ let rec eval (st:State.t) (exp:expr): result =
     | None -> begin
       let loc = State.unique st in
       let store = List.hd_exn st.store in
-      Hashtbl.add_exn store x (t,c,true,loc);
+      Hashtbl.add_exn store x (t,c,MUT,loc);
       Hashtbl.add_exn st.mem loc v;
       (* again, transferring k' or k? *)
       let st' = {st with k = CapSet.add p c} in
@@ -230,6 +230,7 @@ let rec eval (st:State.t) (exp:expr): result =
       | V_bool i -> V_bool(not i), (r, w), CapSet.empty, p
       | _ -> failwith "expected bool for boolean negation"
     end
+  |Class(c,t) -> failwith "unimplemented"
 
 and eval_binop st bop e1 e2 = 
   (* throw away K' and K'', no caps check atm *)

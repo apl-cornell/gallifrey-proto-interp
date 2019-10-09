@@ -10,9 +10,11 @@ type gtype =
   | T_int 
   | T_bool 
   | T_fun of (gtype list) * gtype
-  | T_obj of (var * gtype * bool) list
+  | T_obj of (var * gtype * mut) list
 and cap = string
 and var = string
+and mut = MUT | IMMUT
+and unique = U | A
 
 type binop =
   | BinopAnd
@@ -35,9 +37,9 @@ type expr =
   |Unit
   |Var of var
   |Binary of binop * expr * expr
-  |Fun of (var * gtype * bool) list * gtype * expr
+  |Fun of (var * gtype * unique) list * gtype * expr
   |Apply of var * expr list
-  |Object of (var * expr * bool * bool) list
+  |Object of (var * expr * unique * mut) list
   |Get of expr * string
   |Seq of expr * expr
   |If of expr * expr * expr

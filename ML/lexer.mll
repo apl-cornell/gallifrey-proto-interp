@@ -80,6 +80,7 @@ rule token = parse
 | "focus"    { FOCUS(info lexbuf) }
 | "U"    { U(info lexbuf) }
 | "mut"    { MUT(info lexbuf) }
+| "class"    { CLASS(info lexbuf) }
 | id as v { VAR(info lexbuf, v) }
 | digit+ as n { INT(info lexbuf, int_of_string n) }
 | eof     { EOF }
