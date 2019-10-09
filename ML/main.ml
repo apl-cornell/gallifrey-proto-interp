@@ -17,4 +17,4 @@ let () =
       exit 1 
       in 
     let res, _, _, _ = Eval.eval Eval.init_state ast in
-    Pprint.print_value res
+    print_endline (Pprint.fmt_value res)
