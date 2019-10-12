@@ -51,8 +51,9 @@ and fmt_value v =
   |V_int i -> (string_of_int i)
   |V_bool b -> (string_of_bool b)
   |V_unit -> "()"
-  |V_obj o -> "<object>"
-  |V_fun(ps, ret, e, closure) -> "<closure>"
+  |V_obj o -> "object<>"
+  |V_fun(ps, ret, e, closure) -> "closure<>"
+  |V_ptr(l,t) -> sp "pointer<%s>" (fmt_type t)
 and fmt_type t = 
   match t with
   | T_unit -> "unit"

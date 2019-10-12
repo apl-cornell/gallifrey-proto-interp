@@ -12,6 +12,7 @@ type value =
   |V_obj of (var * fieldinfo) list
   (* boolean is uniqueness *)
   |V_fun of (var * gtype * bool) list * gtype * expr * t_store
+  |V_ptr of loc * gtype
 and t_store = (var, storeinfo) Hashtbl.t
 and loc = int
 (* type, capability, mutable, location *)
@@ -32,6 +33,7 @@ let get_type = function
       (fname, t, mut)
     ) in T_obj(t_fields)
   end
+  | V_ptr(l,t) -> t
   | V_fun(params, return, _, _) -> begin
     let param_types = List.map params 
     (fun (_, t, _) -> t)

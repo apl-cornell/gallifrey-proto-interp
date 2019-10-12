@@ -68,6 +68,12 @@ module State = struct
   (* check it capability is in K *)
   let has_cap s c = CapSet.mem s.k c
 
+  (* follow pointers until a value is reached *)
+  let rec unpack_val s v = 
+    match v with
+    |V_ptr(loc, t) -> get_mem s loc |> unpack_val s
+    |_ -> v
+
 end
 
 let init_state = State.init
@@ -87,8 +93,9 @@ let rec eval (st:State.t) (exp:expr): result =
       else 
         let v = State.get_mem st loc in
         let k' = CapSet.singleton c in
+        let p = CapSet.remove st.k c in
         (* P is K\c *)
-        v, (c, c), k', CapSet.remove st.k c
+        v, (c, c), k', p
     end
   |Binary(op, e1, e2) -> eval_binop st op e1 e2
   |Fun(params, return, e) -> failwith "unimplemented"
@@ -103,7 +110,7 @@ let rec eval (st:State.t) (exp:expr): result =
   |If(c, e1, e2) -> begin
     (* TODO merge K' and P *)
     let v, (r, w), k', p = eval st c in
-    match v with
+    match State.unpack_val st v with
     |V_bool b -> begin
       let e = if b then e1 else e2 in
       let st' = State.enter_scope {st with k = p} in
@@ -114,7 +121,7 @@ let rec eval (st:State.t) (exp:expr): result =
   |While(c, e) -> begin
     (* TODO merge K' and P *)
     let v, (r, w), k', p = eval st c in
-    match v with
+    match State.unpack_val st v with
     |V_bool b -> begin
       let st' = State.enter_scope {st with k = p} in
       eval st' e
@@ -145,13 +152,13 @@ let rec eval (st:State.t) (exp:expr): result =
   |Neg e -> begin
       let v, (r, w), k', p = eval st e in
       (* TODO: right now we are just throwing away K' *)
-      match v with
+      match State.unpack_val st v with
       | V_int i -> V_int(-1 * i), (r, w), CapSet.empty, p
       | _ -> failwith "expected int for integer negation"
     end
   |Not e -> begin
       let v, (r, w), k', p = eval st e in
-      match v with
+      match State.unpack_val st v with
       | V_bool i -> V_bool(not i), (r, w), CapSet.empty, p
       | _ -> failwith "expected bool for boolean negation"
     end
@@ -162,7 +169,7 @@ and eval_binop st bop e1 e2 =
   let v1, (r1, w1), k', pl = eval st e1 in
   let st' = {st with k = pl} in
   let v2, (r2, w2), k'', pr = eval st' e2 in
-  let v' = match (bop, v1, v2) with
+  let v' = match (bop, State.unpack_val st v1, State.unpack_val st v2) with
     | (BinopAnd, V_bool b1, V_bool b2) -> V_bool(b1 && b2)
     | (BinopOr, V_bool b1, V_bool b2) -> V_bool(b1 || b2)
     | (BinopPlus, V_int i1, V_int i2) -> V_int(i1 + i2)
