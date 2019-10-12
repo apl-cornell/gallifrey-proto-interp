@@ -15,8 +15,8 @@ type value =
   |V_ptr of loc * gtype
 and t_store = (var, storeinfo) Hashtbl.t
 and loc = int
-(* type, capability, mutable, location *)
-and storeinfo = (gtype * cap * mut * loc)
+(* type, capability, location *)
+and storeinfo = (gtype * cap * loc)
 (* type, unique, mutable, location *)
 and fieldinfo = (gtype * unique * mut * loc)
 and memory = (loc, value) Hashtbl.t
