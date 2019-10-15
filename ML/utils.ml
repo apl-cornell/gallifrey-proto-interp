@@ -54,7 +54,6 @@ let reconcile_read c1 c2 k1 k2 =
       else if CapSet.mem k2 b then a
       else c_none (* drop read  *)
 
-(* TODO relabeling for writes? *)
 let reconcile_write c1 c2 = 
   match c1, c2 with
   |(a,b) when a = b -> a
