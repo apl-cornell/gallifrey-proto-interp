@@ -11,7 +11,7 @@ type value =
   |V_unit
   |V_obj of (var * fieldinfo) list
   (* boolean is uniqueness *)
-  |V_fun of (var * gtype * bool) list * gtype * expr * t_store
+  |V_fun of string list * (var * gtype * unique) list * gtype * expr * t_store list
   |V_ptr of loc * gtype
 and t_store = (var, storeinfo) Hashtbl.t
 and loc = int
@@ -34,7 +34,7 @@ let get_type = function
     ) in T_obj(t_fields)
   end
   | V_ptr(l,t) -> t
-  | V_fun(params, return, _, _) -> begin
+  | V_fun(caps, params, return, _, _) -> begin
     let param_types = List.map params 
     (fun (_, t, _) -> t)
     in T_fun(param_types, return)
@@ -67,12 +67,15 @@ let reconcile_caps (r1, w1) (r2, w2) k1 k2 =
   (reconcile_read r1 r2 k1 k2, reconcile_write w1 w2)
 
 (* check if read capability (RHS) and write capability (LHS) matches *)
-let can_write w r k = 
+let write w r k = 
   match (w,r) with
   |("NONE", _) -> failwith "cannot write"
   |(_, "NONE") -> failwith "cannot read"
   |(a, b) when a = b -> a
   |("ANY", b) -> b
   |(a, "ANY") -> a
-  |(a,b) -> if CapSet.mem k r then a 
+  |(a,b) -> if CapSet.mem k b then a 
             else failwith "incompatible caps"
+
+let framep k k' p =
+  CapSet.diff k k' |> CapSet.union p
