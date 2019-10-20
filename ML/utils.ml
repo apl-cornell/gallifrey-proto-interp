@@ -10,9 +10,9 @@ type value =
   |V_bool of bool
   |V_unit
   |V_obj of (var * fieldinfo) list
-  (* boolean is uniqueness *)
-  |V_fun of string list * (var * gtype * unique) list * gtype * expr * t_store list
-  |V_ptr of loc * gtype
+  (* string option is class cap, boolean is uniqueness *)
+  |V_fun of string option * string list * (var * gtype * unique) list * gtype * expr * t_store list
+  |V_ptr of loc * loc * mut * gtype
 and t_store = (var, storeinfo) Hashtbl.t
 and loc = int
 (* type, capability, location *)
@@ -20,6 +20,95 @@ and storeinfo = (gtype * cap * loc)
 (* type, unique, mutable, location *)
 and fieldinfo = (gtype * unique * mut * loc)
 and memory = (loc, value) Hashtbl.t
+
+module State = struct
+  type t = {
+    k: CapSet.t;
+    store: t_store list;
+    focus: unit; (* stack of maps? *)
+    classes: unit; (* unsure about this one *)
+    mem: memory;
+    counter: int ref;
+  }
+
+  let init = {
+    k = CapSet.empty;
+    store = [Hashtbl.create (module String)];
+    focus = ();
+    classes = ();
+    mem = Hashtbl.create (module Int);
+    counter = ref 0;
+  }
+
+  (* unique number generator *)
+  let unique s = 
+    s.counter := !(s.counter) + 1; !(s.counter)
+
+  let enter_scope s = 
+    {s with store = (Hashtbl.create (module String))::s.store}
+
+  (* try to find variable in store *)
+  let find_var s x = 
+    let rec find_helper st x =
+      match st with
+      |[] -> failwith "not found"
+      |h::t -> begin
+          match Hashtbl.find h x with
+          |Some v -> v
+          |None -> find_helper t x
+        end
+    in find_helper s.store x
+
+  let find_var_opt s x = 
+    let rec find_helper st x =
+      match st with
+      |[] -> None
+      |h::t -> begin
+          match Hashtbl.find h x with
+          |Some v -> Some v
+          |None -> find_helper t x
+        end
+    in find_helper s.store x
+
+  let var_exists s x = 
+    match find_var_opt s x with
+    | Some v -> true
+    | None -> false
+
+  (* get value at memory location *)
+  let get_mem s loc = Hashtbl.find_exn s.mem loc
+
+  (* check it capability is in K *)
+  let has_cap s c = CapSet.mem s.k c
+
+  let deref s v = 
+    match v with
+    |V_ptr(loc, loc', m, t) -> get_mem s loc'
+    |_ -> v
+
+  (* equivalent to hashtbl.replace but for our special stack *)
+  let update_store s k newloc =
+    let rec update_helper st k v =
+      match st with
+      |[] -> ()
+      |h::t -> begin
+          match Hashtbl.find h k with
+          |Some((t,c,loc)) -> Hashtbl.set h k (t,c,newloc)
+          |None -> update_helper t k newloc
+        end
+    in update_helper s.store k newloc
+
+  (* this might have infinite loop *)
+  let rec is_mutable st v = 
+    match v with
+    |V_obj fields -> 
+      List.fold_left 
+        ~f:(fun a (v,(_,_,m,_)) -> a && m = IMMUT) 
+        ~init:true 
+        fields
+    | V_ptr(l, l', m, t) -> if m = MUT then true else deref st v |> is_mutable st 
+    |_ -> false
+end
 
 let get_type = function
   | V_int _ -> T_int
@@ -33,8 +122,8 @@ let get_type = function
       (fname, t, mut)
     ) in T_obj(t_fields)
   end
-  | V_ptr(l,t) -> t
-  | V_fun(caps, params, return, _, _) -> begin
+  | V_ptr(l, l', m, t) -> t
+  | V_fun(cls, caps, params, return, _, _) -> begin
     let param_types = List.map params 
     (fun (_, t, _) -> t)
     in T_fun(param_types, return)
@@ -66,7 +155,7 @@ let reconcile_caps (r1, w1) (r2, w2) k1 k2 =
   (reconcile_read r1 r2 k1 k2, reconcile_write w1 w2)
 
 (* check if read capability (RHS) and write capability (LHS) matches *)
-let write w r k = 
+let check_write w r k = 
   match (w,r) with
   |("NONE", _) -> failwith "cannot write"
   |(_, "NONE") -> failwith "cannot read"
@@ -76,5 +165,11 @@ let write w r k =
   |(a,b) -> if CapSet.mem k b then a 
             else failwith "incompatible caps"
 
-let framep k k' p =
-  CapSet.diff k k' |> CapSet.union p
+let framep k (v, (r,w), k', p) =
+  let p = CapSet.diff k k' |> CapSet.union p in
+  v,(r,w),k',p
+
+let autoclone (st:State.t) (v, (r,w), k', p) = 
+  let p = if State.is_mutable st v then p 
+          else CapSet.union k' p in
+  v,(r,w),k',p

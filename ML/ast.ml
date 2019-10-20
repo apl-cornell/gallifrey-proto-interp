@@ -37,7 +37,7 @@ type expr =
   |Unit
   |Var of var
   |Binary of binop * expr * expr
-  |Fun of string list * (var * gtype * unique) list * gtype * expr
+  |Fun of string option * string list * (var * gtype * unique) list * gtype * expr
   |Apply of var * expr list
   |Object of (var * expr * unique * mut) list
   |Get of expr * string

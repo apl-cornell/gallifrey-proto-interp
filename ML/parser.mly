@@ -115,7 +115,8 @@ expr :
   | expr GEQ expr { Binary(BinopGeq, $1, $3) }
   | expr NOTEQUALS expr { Binary(BinopNeq, $1, $3) }
   | expr EQUALS expr { Binary(BinopEq, $1, $3) }
-  | LAMBDA LPAREN varlist OR paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun($3, $5, $8, $10) }
+  | LAMBDA LPAREN varlist OR paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun(None, $3, $5, $8, $10) }
+  | LAMBDA VAR LPAREN varlist OR paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun(Some(snd $2), $4, $6, $9, $11) }
   | VAR LPAREN exprlist RPAREN {  Apply(snd $1, $3) }
   | DESTROY LPAREN expr RPAREN {  Destroy($3) }
   | SLEEP LPAREN expr RPAREN {  Sleep($3) }

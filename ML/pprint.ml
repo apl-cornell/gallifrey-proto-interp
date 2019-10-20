@@ -16,7 +16,7 @@ let rec fmt_ast n c =
   |Unit -> "()"
   |Var v -> v
   |Binary(b, e1, e2) -> sp "%s %s %s" (fmt_ast 0 e1) (print_binop b) (fmt_ast 0 e2)
-  |Fun(c,p,r,e) -> sp "function"
+  |Fun(cl,caps,p,r,e) -> sp "function"
   |Apply(a,b) -> "apply"   
   |Object o -> "object"
   |Get(e,f) -> sp "%s.%s" (fmt_ast 0 e) f
@@ -52,8 +52,8 @@ and fmt_value v =
   |V_bool b -> (string_of_bool b)
   |V_unit -> "()"
   |V_obj o -> "object<>"
-  |V_fun(c, p, ret, e, closure) -> "closure<>"
-  |V_ptr(l,t) -> sp "pointer<%s>" (fmt_type t)
+  |V_fun(cls, caps, p, ret, e, closure) -> "closure<>"
+  |V_ptr(l,l',m,t) -> sp "pointer<%s>" (fmt_type t)
 and fmt_type t = 
   match t with
   | T_unit -> "unit"
