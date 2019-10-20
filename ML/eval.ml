@@ -1,18 +1,16 @@
 include Utils
 open Core
 open Unix
-
-(* Interpreter exceptions. *)
-exception UnboundVariable of var
-exception TypeError of string
-exception NameError of string
-exception UnboundFieldError of string
-exception ResourceDestroyedError of string
+open Pprint
 
 let init_state = State.init
 
 (* value, read, write, K', P *)
 type result = value * (cap * cap) * CapSet.t * CapSet.t
+
+let print_set set = 
+  List.iter ~f:(fun x -> printf "%s " x) (CapSet.to_list set);
+  print_endline ""
 
 let rec eval (st:State.t) (exp:expr): result = 
   (* do we transfer K to P in all of these *)
@@ -22,7 +20,7 @@ let rec eval (st:State.t) (exp:expr): result =
   |Unit -> V_unit, (c_any, c_none), CapSet.empty, st.k
   |Var x -> begin
       let t, c, loc = State.find_var st x in
-      if not (State.has_cap st c) then failwith "no capability"
+      if not (State.has_cap st c) then raise (GError ("no capability " ^ c))
       else 
         let k' = CapSet.singleton c in
         let p = CapSet.remove st.k c in
@@ -32,30 +30,54 @@ let rec eval (st:State.t) (exp:expr): result =
   |Binary(op, e1, e2) -> eval_binop st op e1 e2
   |Fun(cls, caps, params, return, e) -> begin
       let store = match st.store with
-        |[] -> failwith "empty store"
+        |[] -> raise (GError "empty store")
         |h::t -> (Hashtbl.copy h):: t
       in
       (* no k', k is moved to p *)
       V_fun(cls, caps, params, return, e, store), (c_any, c_none), CapSet.empty, st.k
-    end
+    end 
   |Apply(fname, args) -> begin
       let t, c, loc = State.find_var st fname in
       let v = State.get_mem st loc |> State.deref st in
       match v with
       |V_fun(cls, caps, params, ret, expr, store) -> begin
-          List.iter caps (fun x -> if CapSet.mem st.k x then () else failwith "capability not found");
-          (* TODO eval all the arguments *)
-          let st' = State.enter_scope st in
+        (* validate caps *)
+          List.iter caps (fun x -> if CapSet.mem st.k x then () else raise (GError "capability not found"));
+          (* eval all the arguments from L to R *)
+          let eval_arg (state, vs, k's, p_) e =
+            let v, (r, w), k', p = eval state e |> framep state.k |> maybe_autoclone state in
+            let state' = {state with k = p} in
+            state', (v,r)::vs, k'::k's, p
+          in
+          let st', vs_rev, k's, p = List.fold_left ~f:eval_arg ~init:(st,[],[],CapSet.empty) args in
+          let vs = List.rev vs_rev in
+          (* TODO unique args *)
+          let nvs = List.map2_exn 
+            ~f:(fun (n,t,u) (v,c) -> 
+              assert (get_type v = t); (n,v,c,t)
+            ) params vs in
+          let st' = State.enter_scope st' in
           (* assign them to store disregarding shadowing rules *)
-          let v, (r, w), k', p = eval st' expr in
+          List.iter ~f:(fun (n,v,c,t) -> 
+            let loc1 = State.unique st' in
+            let loc2 = State.unique st' in
+            let store = List.hd_exn st'.store in
+            Hashtbl.remove store n;
+            Hashtbl.add_exn store n (t,c,loc1);
+            Hashtbl.add_exn st.mem loc1 (V_ptr(loc1, loc2, MUT, get_type v));
+            Hashtbl.add_exn st.mem loc2 v
+          ) nvs;
+          (* eval body *)
+          let v, (r, w), k', p = eval st' expr |> framep st'.k |> maybe_autoclone st' in
           assert (get_type v = ret); 
           v, (r, w), k', p
         end
-      |_ -> failwith "expected a function"
+      |_ -> raise (GError "expected a function")
     end
   |Object o -> begin
+    (* helper function for processing a field and setting up the correct pointers *)
       let eval_field (state, locs, k's, p_) (var, e, u, m) =
-        let v, (r, w), k', p = eval state e |> framep state.k |> autoclone state in
+        let v, (r, w), k', p = eval state e |> framep state.k |> maybe_autoclone state in
         let t = get_type v in
         let loc = State.unique state in
         let loc' = State.unique state in
@@ -76,7 +98,7 @@ let rec eval (st:State.t) (exp:expr): result =
       V_obj(field_info), (c, c), k', p
     end
   |Get(e,fname) -> begin
-      let v, (r, w), k', p = eval st e |> framep st.k |> autoclone st in
+      let v, (r, w), k', p = eval st e |> framep st.k |> maybe_autoclone st in
       match State.deref st v with
       |V_obj fields -> begin
           let (t,u,mut,loc) = List.Assoc.find_exn fields ~equal:(=) fname in
@@ -88,13 +110,17 @@ let rec eval (st:State.t) (exp:expr): result =
             |MUT -> w 
             |IMMUT -> c_none
           in
-          (* I don't think I can autoclone here *)
+          let r = match u with
+            |U -> r ^ "." ^ fname
+            |A -> r
+          in
+          (* I don't think I can maybe_autoclone here *)
           State.get_mem st loc, (r,w), k', p
         end
-      |_ -> failwith "expected object"
+      |_ -> raise (GError "expected object")
     end
   |Seq(e1, e2) -> begin
-      let v1, (r1, w1), k', pl = eval st e1 in
+      let v1, (r1, w1), k', pl = eval st e1 |> framep st.k |> autoclone st in
       let st' = {st with k = pl} in
       eval st' e2
     end
@@ -106,7 +132,7 @@ let rec eval (st:State.t) (exp:expr): result =
           let e = if b then e1 else e2 in
           eval st' e
         end
-      |_ -> failwith "condition needs to be boolean"
+      |_ -> raise (GError "condition needs to be boolean")
     end
   |While(c, e) -> begin
       let v, (r, w), k', p = eval st c |> framep st.k |> autoclone st in
@@ -118,14 +144,15 @@ let rec eval (st:State.t) (exp:expr): result =
           else
             V_unit, (c_none, c_none), CapSet.empty, p
         end
-      |_ -> failwith "condition needs to be boolean"
+      |_ -> raise (GError "condition needs to be boolean")
     end
   |Let(x, e1, e2) -> begin
       let v, (r, w), k', p = eval st e1 in
       let c = "c."^(string_of_int (State.unique st)) in
       let t = get_type v in
+      let st = State.enter_scope st in
       match State.find_var_opt st x with
-      | Some _ -> failwith "no shadowing allowed"
+      | Some _ -> raise (GError "no shadowing allowed")
       | None -> begin
           let loc1 = State.unique st in
           let loc2 = State.unique st in
@@ -138,55 +165,63 @@ let rec eval (st:State.t) (exp:expr): result =
           eval st' e2
         end
     end
-  |Destroy e -> failwith "unimplemented"
+  |Destroy e -> begin
+    (* TODO I'm pretty sure that all the caps in K get moved to P 
+    in any expression that contains this bc unit is immutable *)
+    (* read cap for whatever was evaluated is destroyed *)
+    let v, (r, w), k', p = eval st e |> framep st.k |> maybe_autoclone st in
+    (* remove r from p *)
+    let p = CapSet.diff p (CapSet.singleton r) in
+    V_unit, (c_none, c_none), CapSet.singleton r, p
+  end
   |Sleep e -> begin
     match e with
-    |Int i -> (Unix.sleep i); V_unit, (c_none, c_none), CapSet.empty, CapSet.empty
-    |_ -> failwith "expected int literal"
+    |Int i -> (Unix.sleep i); V_unit, (c_none, c_none), CapSet.empty, st.k
+    |_ -> raise (GError "expected int literal")
   end
-  |Branch(vlist, e) -> failwith "unimplemented"
-  |Focus(e1, e2) -> failwith "unimplemented"
+  |Branch(vlist, e) -> raise (GError "unimplemented")
+  |Focus(e1, e2) -> raise (GError "unimplemented")
   |Assign(e1, e2) -> begin
-      (* TODO k' and p, autoclone for LHS? *)
-      let v1, (r1, w1), k', pl = eval st e1 |> framep st.k in
+      (* TODO k' and p, maybe_autoclone for LHS? *)
+      let v1, (r1, w1), k', pl = eval st e1 |> framep st.k |> autoclone st in
       let st' = {st with k = pl} in
-      let v2, (r2, w2), k'', pr = eval st' e2 |> framep st.k |> autoclone st in
+      let v2, (r2, w2), k'', pr = eval st' e2 |> framep st'.k |> maybe_autoclone st' in
       ignore (check_write w1 r1 st'.k);
       match (v1, v2) with
       (* aliasing *)
       |V_ptr(l1,l1',m1,t1), V_ptr(l2,l2',m2,t2) -> begin
-          if t1 <> t2 then failwith "types do not match"
-          else if m1 <> MUT then failwith "LHS is not mutable"
+          if t1 <> t2 then raise (GError "types do not match")
+          else if m1 <> MUT then raise (GError "LHS is not mutable")
           else Hashtbl.set st.mem l1 (V_ptr(l1, l2', m1, t1));
           V_unit, (c_none, c_none), CapSet.empty, CapSet.union k'' pr
         end
       (* assigning a value *)
       |V_ptr(l,l',m,t), v -> begin
-          if t <> get_type v then failwith "types do not match"
+          if t <> get_type v then raise (GError "types do not match")
           else Hashtbl.set st.mem l' v;
           V_unit, (c_none, c_none), CapSet.empty, CapSet.union k'' pr
         end
-      |_ -> failwith "illegal assignment" 
+      |_ -> raise (GError "illegal assignment") 
     end
   |Neg e -> begin
-      let v, (r, w), k', p = eval st e |> framep st.k |> autoclone st in
+      let v, (r, w), k', p = eval st e |> framep st.k |> maybe_autoclone st in
       match State.deref st v with
       | V_int i -> V_int(-1 * i), (r, w), CapSet.empty, p
-      | _ -> failwith "expected int for integer negation"
+      | _ -> raise (GError "expected int for integer negation")
     end
   |Not e -> begin
-      let v, (r, w), k', p = eval st e |> framep st.k |> autoclone st in
+      let v, (r, w), k', p = eval st e |> framep st.k |> maybe_autoclone st in
       match State.deref st v with
       | V_bool i -> V_bool(not i), (r, w), CapSet.empty, p
-      | _ -> failwith "expected bool for boolean negation"
+      | _ -> raise (GError "expected bool for boolean negation")
     end
-  |Class(c,t) -> failwith "unimplemented"
+  |Class(c,t) -> raise (GError "unimplemented")
 
 and eval_binop st bop e1 e2 = 
   (* throw away K' and K'', no caps check atm *)
   let v1, (r1, w1), k', pl = eval st e1 |> framep st.k |> autoclone st in
   let st' = {st with k = pl} in
-  let v2, (r2, w2), k'', pr = eval st' e2 |> framep st.k |> autoclone st in
+  let v2, (r2, w2), k'', pr = eval st' e2 |> framep st'.k |> autoclone st' in
   let v' = match (bop, State.deref st v1, State.deref st v2) with
     | (BinopAnd, V_bool b1, V_bool b2) -> V_bool(b1 && b2)
     | (BinopOr, V_bool b1, V_bool b2) -> V_bool(b1 || b2)
@@ -201,7 +236,7 @@ and eval_binop st bop e1 e2 =
     | (BinopGeq, V_int i1, V_int i2) -> V_bool(i1 >= i2)
     | (BinopNeq, _, _) -> V_bool(v1 <> v2)
     | (BinopEq, _, _) -> V_bool(v1 = v2)
-    |_ -> failwith "invalid binop"
+    |_ -> raise (GError "invalid binop")
   in
   let cr, cw = reconcile_caps (r1, w1) (r2, w2) k' k'' in
   v', (cr, cw), CapSet.empty, pr

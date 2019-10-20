@@ -30,10 +30,11 @@ let sort_obj_field t_obj =
   NOT AND OR
   SKIP ASSIGN SEMI IF THEN ELSE WHILE DO
   LBRACE RBRACE
-  PRINT COMMA COLON ARROW LAMBDA T_INT T_BOOL T_UNIT
+  PRINT COMMA COLON DOT ARROW LAMBDA T_INT T_BOOL T_UNIT
   BRANCH FOCUS U MUT SLEEP UNIT LET IN DESTROY CLASS
 %token EOF
 
+%nonassoc IN
 %nonassoc SEMI
 %nonassoc THEN
 %nonassoc ELSE
@@ -115,6 +116,8 @@ expr :
   | expr GEQ expr { Binary(BinopGeq, $1, $3) }
   | expr NOTEQUALS expr { Binary(BinopNeq, $1, $3) }
   | expr EQUALS expr { Binary(BinopEq, $1, $3) }
+  | LAMBDA LPAREN OR paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun(None, [], $4, $7, $9) }
+  | LAMBDA VAR LPAREN OR paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun(Some(snd $2), [], $5, $8, $10) }
   | LAMBDA LPAREN varlist OR paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun(None, $3, $5, $8, $10) }
   | LAMBDA VAR LPAREN varlist OR paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun(Some(snd $2), $4, $6, $9, $11) }
   | VAR LPAREN exprlist RPAREN {  Apply(snd $1, $3) }
@@ -132,6 +135,7 @@ expr :
   | WHILE expr LBRACE expr RBRACE     { While($2, $4) }
   | FOCUS expr LBRACE expr RBRACE     { Focus($2, $4) }
   | BRANCH varlist LBRACE expr RBRACE     { Branch($2, $4) }
+  | LET VAR ASSIGN expr IN expr { Let(snd $2, $4, $6) }
   | expr ASSIGN expr { Assign($1, $3) }
   | CLASS VAR LBRACE paramlist RBRACE { Class(snd $2, T_obj(sort_field $4)) }
   

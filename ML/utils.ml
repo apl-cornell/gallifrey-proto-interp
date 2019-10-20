@@ -1,6 +1,14 @@
 open Core
 include Ast
 
+(* Interpreter exceptions. *)
+exception UnboundVariable of var
+exception TypeError of string
+exception NameError of string
+exception UnboundFieldError of string
+exception ResourceDestroyedError of string
+exception GError of string
+
 module CapSet = Set.Make(String)
 let c_any = "ANY"
 let c_none = "NONE"
@@ -51,7 +59,7 @@ module State = struct
   let find_var s x = 
     let rec find_helper st x =
       match st with
-      |[] -> failwith "not found"
+      |[] -> raise (GError ("var " ^ x ^ " not found"))
       |h::t -> begin
           match Hashtbl.find h x with
           |Some v -> v
@@ -108,6 +116,14 @@ module State = struct
         fields
     | V_ptr(l, l', m, t) -> if m = MUT then true else deref st v |> is_mutable st 
     |_ -> false
+
+  let rec destroy_store store cap = 
+    match store with
+    |[] -> ()
+    |h::t -> Hashtbl.filter_inplace ~f:(fun (t,c,l) -> c <> cap) h; destroy_store t cap
+
+  let destroy st cap = 
+    destroy_store st.store cap
 end
 
 let get_type = function
@@ -157,19 +173,23 @@ let reconcile_caps (r1, w1) (r2, w2) k1 k2 =
 (* check if read capability (RHS) and write capability (LHS) matches *)
 let check_write w r k = 
   match (w,r) with
-  |("NONE", _) -> failwith "cannot write"
-  |(_, "NONE") -> failwith "cannot read"
+  |("NONE", _) -> raise (GError "cannot write")
+  |(_, "NONE") -> raise (GError "cannot read")
   |(a, b) when a = b -> a
   |("ANY", b) -> b
   |(a, "ANY") -> a
   |(a,b) -> if CapSet.mem k b then a 
-            else failwith "incompatible caps"
+            else raise (GError "incompatible caps")
 
 let framep k (v, (r,w), k', p) =
   let p = CapSet.diff k k' |> CapSet.union p in
   v,(r,w),k',p
 
-let autoclone (st:State.t) (v, (r,w), k', p) = 
+let maybe_autoclone (st:State.t) (v, (r,w), k', p) = 
   let p = if State.is_mutable st v then p 
           else CapSet.union k' p in
+  v,(r,w),k',p
+
+let autoclone (st:State.t) (v, (r,w), k', p) = 
+  let p = CapSet.union k' p in
   v,(r,w),k',p

@@ -60,6 +60,7 @@ rule token = parse
 | ";"     { SEMI(info lexbuf) }
 | ":"     { COLON(info lexbuf) }
 | ","     { COMMA(info lexbuf) }
+| "."     { DOT(info lexbuf) }
 | "true"  { TRUE(info lexbuf) }
 | "false" { FALSE(info lexbuf) }
 | "!"   { NOT(info lexbuf) }
@@ -77,6 +78,7 @@ rule token = parse
 | "in"    { IN(info lexbuf) }
 | "branch"    { BRANCH(info lexbuf) }
 | "destroy"    { DESTROY(info lexbuf) }
+| "sleep"    { SLEEP(info lexbuf) }
 | "focus"    { FOCUS(info lexbuf) }
 | "U"    { U(info lexbuf) }
 | "mut"    { MUT(info lexbuf) }
