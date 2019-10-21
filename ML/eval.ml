@@ -2,6 +2,7 @@ include Utils
 open Core
 open Unix
 open Pprint
+open Thread
 
 let init_state = State.init
 
@@ -41,7 +42,8 @@ let rec eval (st:State.t) (exp:expr): result =
       let v = State.get_mem st loc |> State.deref st in
       match v with
       |V_fun(cls, caps, params, ret, expr, store) -> begin
-        (* validate caps *)
+          (* validate caps, for now treat as vars *)
+          let caps = List.map caps (fun x ->  let _, c, _ = State.find_var st x in c) in
           List.iter caps (fun x -> if CapSet.mem st.k x then () else raise (GError "capability not found"));
           (* eval all the arguments from L to R *)
           let eval_arg (state, vs, k's, p_) e =
@@ -53,20 +55,20 @@ let rec eval (st:State.t) (exp:expr): result =
           let vs = List.rev vs_rev in
           (* TODO unique args *)
           let nvs = List.map2_exn 
-            ~f:(fun (n,t,u) (v,c) -> 
-              assert (get_type v = t); (n,v,c,t)
-            ) params vs in
+              ~f:(fun (n,t,u) (v,c) -> 
+                  assert (get_type v = t); (n,v,c,t)
+                ) params vs in
           let st' = State.enter_scope st' in
           (* assign them to store disregarding shadowing rules *)
           List.iter ~f:(fun (n,v,c,t) -> 
-            let loc1 = State.unique st' in
-            let loc2 = State.unique st' in
-            let store = List.hd_exn st'.store in
-            Hashtbl.remove store n;
-            Hashtbl.add_exn store n (t,c,loc1);
-            Hashtbl.add_exn st.mem loc1 (V_ptr(loc1, loc2, MUT, get_type v));
-            Hashtbl.add_exn st.mem loc2 v
-          ) nvs;
+              let loc1 = State.unique st' in
+              let loc2 = State.unique st' in
+              let store = List.hd_exn st'.store in
+              Hashtbl.remove store n;
+              Hashtbl.add_exn store n (t,c,loc1);
+              Hashtbl.add_exn st.mem loc1 (V_ptr(loc1, loc2, MUT, get_type v));
+              Hashtbl.add_exn st.mem loc2 v
+            ) nvs;
           (* eval body *)
           let v, (r, w), k', p = eval st' expr |> framep st'.k |> maybe_autoclone st' in
           assert (get_type v = ret); 
@@ -75,7 +77,7 @@ let rec eval (st:State.t) (exp:expr): result =
       |_ -> raise (GError "expected a function")
     end
   |Object o -> begin
-    (* helper function for processing a field and setting up the correct pointers *)
+      (* helper function for processing a field and setting up the correct pointers *)
       let eval_field (state, locs, k's, p_) (var, e, u, m) =
         let v, (r, w), k', p = eval state e |> framep state.k |> maybe_autoclone state in
         let t = get_type v in
@@ -90,9 +92,9 @@ let rec eval (st:State.t) (exp:expr): result =
       let field_info = List.rev locs_rev in
       let c = "c."^(string_of_int (State.unique st)) in
       let k' = List.fold_left 
-        ~f:(fun a x -> CapSet.union a x) 
-        ~init:(CapSet.empty) 
-        ((CapSet.singleton c)::k's) 
+          ~f:(fun a x -> CapSet.union a x) 
+          ~init:(CapSet.empty) 
+          ((CapSet.singleton c)::k's) 
       in
       (* k' is union of all k' + c, p is p of last field expr *)
       V_obj(field_info), (c, c), k', p
@@ -102,9 +104,9 @@ let rec eval (st:State.t) (exp:expr): result =
       match State.deref st v with
       |V_obj fields -> begin
           let (t,u,mut,loc) = List.Assoc.find_exn fields ~equal:(=) fname in
-          (* for now, read cap for the obj is always consumed *)
+          (* for now, write cap for the obj is always consumed *)
           (* TODO check this behavior *)
-          let p = CapSet.diff p (CapSet.singleton r) in
+          let p = CapSet.diff p (CapSet.singleton w) in
           (* if immutable, no write is allowed *)
           let w = match mut with 
             |MUT -> w 
@@ -166,42 +168,52 @@ let rec eval (st:State.t) (exp:expr): result =
         end
     end
   |Destroy e -> begin
-    (* TODO I'm pretty sure that all the caps in K get moved to P 
-    in any expression that contains this bc unit is immutable *)
-    (* read cap for whatever was evaluated is destroyed *)
-    let v, (r, w), k', p = eval st e |> framep st.k |> maybe_autoclone st in
-    (* remove r from p *)
-    let p = CapSet.diff p (CapSet.singleton r) in
-    V_unit, (c_none, c_none), CapSet.singleton r, p
-  end
+      (* TODO I'm pretty sure that all the caps in K get moved to P 
+         in any expression that contains this bc unit is immutable *)
+      (* read cap for whatever was evaluated is destroyed *)
+      let v, (r, w), k', p = eval st e |> framep st.k |> maybe_autoclone st in
+      (* remove r from p *)
+      let p = CapSet.diff p (CapSet.singleton w) in
+      V_unit, (c_none, c_none), CapSet.singleton r, p
+    end
   |Sleep e -> begin
-    match e with
-    |Int i -> (Unix.sleep i); V_unit, (c_none, c_none), CapSet.empty, st.k
-    |_ -> raise (GError "expected int literal")
+      match e with
+      |Int i -> (Unix.sleep i); V_unit, (c_none, c_none), CapSet.empty, st.k
+      |_ -> raise (GError "expected int literal")
+    end
+  |Branch(vlist, e) -> begin
+    let caps = List.map vlist (fun x ->  let _, c, _ = State.find_var st x in c) |> CapSet.of_list in
+    let p_k, c_k = CapSet.diff st.k caps, CapSet.inter st.k caps in
+    let c_st = State.enter_scope {st with k = c_k} in
+    ignore(Thread.create (fun expr -> eval c_st expr) e);
+    V_unit, (c_none, c_none), c_k, p_k
   end
-  |Branch(vlist, e) -> raise (GError "unimplemented")
   |Focus(e1, e2) -> raise (GError "unimplemented")
   |Assign(e1, e2) -> begin
-      (* TODO k' and p, maybe_autoclone for LHS? *)
+      (* this needs another looking-at *)
       let v1, (r1, w1), k', pl = eval st e1 |> framep st.k |> autoclone st in
-      let st' = {st with k = pl} in
+      (* temporary autoclone for handling LHS *)
+      let st' = st in
       let v2, (r2, w2), k'', pr = eval st' e2 |> framep st'.k |> maybe_autoclone st' in
-      ignore (check_write w1 r1 st'.k);
-      match (v1, v2) with
-      (* aliasing *)
-      |V_ptr(l1,l1',m1,t1), V_ptr(l2,l2',m2,t2) -> begin
-          if t1 <> t2 then raise (GError "types do not match")
-          else if m1 <> MUT then raise (GError "LHS is not mutable")
-          else Hashtbl.set st.mem l1 (V_ptr(l1, l2', m1, t1));
-          V_unit, (c_none, c_none), CapSet.empty, CapSet.union k'' pr
-        end
-      (* assigning a value *)
-      |V_ptr(l,l',m,t), v -> begin
-          if t <> get_type v then raise (GError "types do not match")
-          else Hashtbl.set st.mem l' v;
-          V_unit, (c_none, c_none), CapSet.empty, CapSet.union k'' pr
-        end
-      |_ -> raise (GError "illegal assignment") 
+      let c = check_write w1 r1 st'.k in
+      let k' = CapSet.add k'' w2 in
+      let k', p = CapSet.remove k' c, CapSet.add pr c in
+      (match (v1, v2) with
+       (* aliasing *)
+       |V_ptr(l1,l1',m1,t1), V_ptr(l2,l2',m2,t2) -> begin
+           if t1 <> t2 then raise (GError "types do not match")
+           else if m1 <> MUT then raise (GError "LHS is not mutable")
+           else if CapSet.mem k' c then raise (GError "c in k'")
+           else Hashtbl.set st.mem l1 (V_ptr(l1, l2', m1, t1))
+         end
+       (* assigning a value *)
+       |V_ptr(l,l',m,t), v -> begin
+           if t <> get_type v then raise (GError "types do not match")
+           else if CapSet.mem k' c then raise (GError "c in k'")
+           else Hashtbl.set st.mem l' v
+         end
+       |_ -> raise (GError "illegal assignment"));
+      V_unit, (c_none, c_none), k', p
     end
   |Neg e -> begin
       let v, (r, w), k', p = eval st e |> framep st.k |> maybe_autoclone st in

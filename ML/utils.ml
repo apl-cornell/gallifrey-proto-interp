@@ -109,11 +109,11 @@ module State = struct
   (* this might have infinite loop *)
   let rec is_mutable st v = 
     match v with
-    |V_obj fields -> 
-      List.fold_left 
+    |V_obj fields -> true
+      (* List.fold_left 
         ~f:(fun a (v,(_,_,m,_)) -> a && m = IMMUT) 
         ~init:true 
-        fields
+        fields *)
     | V_ptr(l, l', m, t) -> if m = MUT then true else deref st v |> is_mutable st 
     |_ -> false
 
@@ -185,11 +185,13 @@ let framep k (v, (r,w), k', p) =
   let p = CapSet.diff k k' |> CapSet.union p in
   v,(r,w),k',p
 
+(* something is wrong with these semantics *)
+
 let maybe_autoclone (st:State.t) (v, (r,w), k', p) = 
-  let p = if State.is_mutable st v then p 
-          else CapSet.union k' p in
+  (* let k', p = if State.is_mutable st v then k', p 
+          else CapSet.empty, CapSet.union k' p in *)
   v,(r,w),k',p
 
 let autoclone (st:State.t) (v, (r,w), k', p) = 
-  let p = CapSet.union k' p in
-  v,(r,w),k',p
+  (* let p = CapSet.union k' p in *)
+  v,(r,w),CapSet.empty,p

@@ -35,7 +35,7 @@ let sort_obj_field t_obj =
 %token EOF
 
 %nonassoc IN
-%nonassoc SEMI
+%left SEMI
 %nonassoc THEN
 %nonassoc ELSE
 %right ASSIGN
