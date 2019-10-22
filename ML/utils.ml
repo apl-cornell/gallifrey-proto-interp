@@ -180,18 +180,16 @@ let check_write w r k =
   |(a, "ANY") -> a
   |(a,b) -> if CapSet.mem k b then a 
             else raise (GError "incompatible caps")
-
+(* 
 let framep k (v, (r,w), k', p) =
   let p = CapSet.diff k k' |> CapSet.union p in
-  v,(r,w),k',p
-
-(* something is wrong with these semantics *)
+  v,(r,w),k',p *)
 
 let maybe_autoclone (st:State.t) (v, (r,w), k', p) = 
-  (* let k', p = if State.is_mutable st v then k', p 
-          else CapSet.empty, CapSet.union k' p in *)
+  let k', p = if State.is_mutable st v then k', p 
+          else CapSet.empty, CapSet.union k' p in
   v,(r,w),k',p
 
 let autoclone (st:State.t) (v, (r,w), k', p) = 
-  (* let p = CapSet.union k' p in *)
+  let p = CapSet.union k' p in
   v,(r,w),CapSet.empty,p

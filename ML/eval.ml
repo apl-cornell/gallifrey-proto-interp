@@ -47,7 +47,7 @@ let rec eval (st:State.t) (exp:expr): result =
           List.iter caps (fun x -> if CapSet.mem st.k x then () else raise (GError "capability not found"));
           (* eval all the arguments from L to R *)
           let eval_arg (state, vs, k's, p_) e =
-            let v, (r, w), k', p = eval state e |> framep state.k |> maybe_autoclone state in
+            let v, (r, w), k', p = eval state e |> maybe_autoclone state in
             let state' = {state with k = p} in
             state', (v,r)::vs, k'::k's, p
           in
@@ -79,7 +79,7 @@ let rec eval (st:State.t) (exp:expr): result =
   |Object o -> begin
       (* helper function for processing a field and setting up the correct pointers *)
       let eval_field (state, locs, k's, p_) (var, e, u, m) =
-        let v, (r, w), k', p = eval state e |> framep state.k |> maybe_autoclone state in
+        let v, (r, w), k', p = eval state e |> maybe_autoclone state in
         let t = get_type v in
         let loc = State.unique state in
         let loc' = State.unique state in
@@ -100,7 +100,7 @@ let rec eval (st:State.t) (exp:expr): result =
       V_obj(field_info), (c, c), k', p
     end
   |Get(e,fname) -> begin
-      let v, (r, w), k', p = eval st e |> framep st.k |> maybe_autoclone st in
+      let v, (r, w), k', p = eval st e |> maybe_autoclone st in
       match State.deref st v with
       |V_obj fields -> begin
           let (t,u,mut,loc) = List.Assoc.find_exn fields ~equal:(=) fname in
@@ -122,12 +122,12 @@ let rec eval (st:State.t) (exp:expr): result =
       |_ -> raise (GError "expected object")
     end
   |Seq(e1, e2) -> begin
-      let v1, (r1, w1), k', pl = eval st e1 |> framep st.k |> autoclone st in
+      let v1, (r1, w1), k', pl = eval st e1 |> autoclone st in
       let st' = {st with k = pl} in
       eval st' e2
     end
   |If(c, e1, e2) -> begin
-      let v, (r, w), k', p = eval st c |> framep st.k |> autoclone st in
+      let v, (r, w), k', p = eval st c |> autoclone st in
       let st' = State.enter_scope {st with k = p} in
       match State.deref st v with
       |V_bool b -> begin
@@ -137,7 +137,7 @@ let rec eval (st:State.t) (exp:expr): result =
       |_ -> raise (GError "condition needs to be boolean")
     end
   |While(c, e) -> begin
-      let v, (r, w), k', p = eval st c |> framep st.k |> autoclone st in
+      let v, (r, w), k', p = eval st c |> autoclone st in
       let st' = State.enter_scope {st with k = p} in
       match State.deref st v with
       |V_bool b -> begin
@@ -171,7 +171,7 @@ let rec eval (st:State.t) (exp:expr): result =
       (* TODO I'm pretty sure that all the caps in K get moved to P 
          in any expression that contains this bc unit is immutable *)
       (* read cap for whatever was evaluated is destroyed *)
-      let v, (r, w), k', p = eval st e |> framep st.k |> maybe_autoclone st in
+      let v, (r, w), k', p = eval st e |> maybe_autoclone st in
       (* remove r from p *)
       let p = CapSet.diff p (CapSet.singleton w) in
       V_unit, (c_none, c_none), CapSet.singleton r, p
@@ -191,7 +191,7 @@ let rec eval (st:State.t) (exp:expr): result =
   |Focus(e1, e2) -> raise (GError "unimplemented")
   |Assign(e1, e2) -> begin
       (* this needs another looking-at *)
-      let v1, (r1, w1), k', pl = eval st e1 |> framep st.k |> autoclone st in
+      let v1, (r1, w1), k', pl = eval st e1 |> autoclone st in
       (* temporary autoclone for handling LHS *)
       let st' = st in
       let v2, (r2, w2), k'', pr = eval st' e2 |> framep st'.k |> maybe_autoclone st' in
@@ -216,13 +216,13 @@ let rec eval (st:State.t) (exp:expr): result =
       V_unit, (c_none, c_none), k', p
     end
   |Neg e -> begin
-      let v, (r, w), k', p = eval st e |> framep st.k |> maybe_autoclone st in
+      let v, (r, w), k', p = eval st e |> maybe_autoclone st in
       match State.deref st v with
       | V_int i -> V_int(-1 * i), (r, w), CapSet.empty, p
       | _ -> raise (GError "expected int for integer negation")
     end
   |Not e -> begin
-      let v, (r, w), k', p = eval st e |> framep st.k |> maybe_autoclone st in
+      let v, (r, w), k', p = eval st e |> maybe_autoclone st in
       match State.deref st v with
       | V_bool i -> V_bool(not i), (r, w), CapSet.empty, p
       | _ -> raise (GError "expected bool for boolean negation")
@@ -231,7 +231,7 @@ let rec eval (st:State.t) (exp:expr): result =
 
 and eval_binop st bop e1 e2 = 
   (* throw away K' and K'', no caps check atm *)
-  let v1, (r1, w1), k', pl = eval st e1 |> framep st.k |> autoclone st in
+  let v1, (r1, w1), k', pl = eval st e1 |> autoclone st in
   let st' = {st with k = pl} in
   let v2, (r2, w2), k'', pr = eval st' e2 |> framep st'.k |> autoclone st' in
   let v' = match (bop, State.deref st v1, State.deref st v2) with

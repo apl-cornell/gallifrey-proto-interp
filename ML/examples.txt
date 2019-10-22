@@ -1,0 +1,21 @@
+let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; y.a)
+let x = {mut a : 1} in let y = {a : 2} in (y.a = x.a; y.a) fails
+let x = 1 in let y = 5 in (y = x; y + x) ???
+let x = 1 in let y = 5 in (y = x; y + y)
+let x = 1 in let y = 5 in (y + x)
+let x = 1 in (destroy(x);x) fails
+let x = 1 let y = 5 in (destroy(x);y) 
+let x = 1 in (destroy(x);destroy(x)) fails
+let x = 1 in (x;x)
+let x = 1 in (sleep(5);x)
+let x = true in if x then 4 else 6
+let x = true in if x { !x } else { x }
+let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; y)
+let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; x) fails
+let x = {mut a : 1} in let y = {mut a : 2} in (y = x; x) fails
+let x = {mut a : 1} in let y = {mut a : 2} in (y = x; y)
+let x = 1 in (x = x + 1)
+let x = 1 in let y = 0 in branch x {x}; y
+let x = 1 in let y = 0 in branch y {x}; x child thread fails
+let x = 1 in let y = 0 in branch x {x}; x parent thread fails
+let x = 1 in let y = 0 in branch x {sleep(1);y}; sleep(2);y child fails

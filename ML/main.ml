@@ -1,12 +1,14 @@
 open Eval
 open Pprint
+open Test
 
 let () =
   let _ =
     if Array.length Sys.argv <> 2 then
-      (Printf.printf "Usage: gallifrey <file>\n";
+      (Printf.printf "Usage: gallifrey <file> OR gallifrey -test\n";
        exit 0) in
   let filename = Sys.argv.(1) in
+  if filename = "-test" then Test.run_tests () else
   let lexbuf = Lexing.from_channel (open_in filename) in
   let ast =
     try Parser.p Lexer.token lexbuf
