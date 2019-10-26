@@ -47,7 +47,7 @@ let rec eval (st:State.t) (exp:expr): result =
           List.iter caps (fun x -> if CapSet.mem st.k x then () else raise (GError "capability not found"));
           (* eval all the arguments from L to R *)
           let eval_arg (state, vs, k's, p_) e =
-            let v, (r, w), k', p = eval state e |> maybe_autoclone state in
+            let v, (r, w), k', p = eval state e |> autoclone state in
             let state' = {state with k = p} in
             state', (v,r)::vs, k'::k's, p
           in
@@ -70,7 +70,7 @@ let rec eval (st:State.t) (exp:expr): result =
               Hashtbl.add_exn st.mem loc2 v
             ) nvs;
           (* eval body *)
-          let v, (r, w), k', p = eval st' expr |> framep st'.k |> maybe_autoclone st' in
+          let v, (r, w), k', p = eval st' expr |> autoclone st' in
           assert (get_type v = ret); 
           v, (r, w), k', p
         end
@@ -79,7 +79,7 @@ let rec eval (st:State.t) (exp:expr): result =
   |Object o -> begin
       (* helper function for processing a field and setting up the correct pointers *)
       let eval_field (state, locs, k's, p_) (var, e, u, m) =
-        let v, (r, w), k', p = eval state e |> maybe_autoclone state in
+        let v, (r, w), k', p = eval state e |> autoclone state in
         let t = get_type v in
         let loc = State.unique state in
         let loc' = State.unique state in
@@ -100,7 +100,7 @@ let rec eval (st:State.t) (exp:expr): result =
       V_obj(field_info), (c, c), k', p
     end
   |Get(e,fname) -> begin
-      let v, (r, w), k', p = eval st e |> maybe_autoclone st in
+      let v, (r, w), k', p = eval st e |> autoclone st in
       match State.deref st v with
       |V_obj fields -> begin
           let (t,u,mut,loc) = List.Assoc.find_exn fields ~equal:(=) fname in
@@ -116,13 +116,13 @@ let rec eval (st:State.t) (exp:expr): result =
             |U -> r ^ "." ^ fname
             |A -> r
           in
-          (* I don't think I can maybe_autoclone here *)
+          (* I don't think I can autoclone here *)
           State.get_mem st loc, (r,w), k', p
         end
       |_ -> raise (GError "expected object")
     end
   |Seq(e1, e2) -> begin
-      let v1, (r1, w1), k', pl = eval st e1 |> autoclone st in
+      let v1, (r1, w1), k', pl = eval st e1|> autoclone st in
       let st' = {st with k = pl} in
       eval st' e2
     end
@@ -149,7 +149,8 @@ let rec eval (st:State.t) (exp:expr): result =
       |_ -> raise (GError "condition needs to be boolean")
     end
   |Let(x, e1, e2) -> begin
-      let v, (r, w), k', p = eval st e1 in
+      (* autoclone to prevent own caps from being consumed *)
+      let v, (r, w), k', p = eval st e1 |> autoclone st in
       let c = "c."^(string_of_int (State.unique st)) in
       let t = get_type v in
       let st = State.enter_scope st in
@@ -168,13 +169,11 @@ let rec eval (st:State.t) (exp:expr): result =
         end
     end
   |Destroy e -> begin
-      (* TODO I'm pretty sure that all the caps in K get moved to P 
-         in any expression that contains this bc unit is immutable *)
       (* read cap for whatever was evaluated is destroyed *)
-      let v, (r, w), k', p = eval st e |> maybe_autoclone st in
-      (* remove r from p *)
-      let p = CapSet.diff p (CapSet.singleton w) in
-      V_unit, (c_none, c_none), CapSet.singleton r, p
+      let v, (r, w), k', p = eval st e |> autoclone st in
+      (* remove w from p, frame *)
+      let p = CapSet.diff (CapSet.union p st.k) (CapSet.add k' w) in
+      V_unit, (c_none, c_none), CapSet.empty, p
     end
   |Sleep e -> begin
       match e with
@@ -182,19 +181,18 @@ let rec eval (st:State.t) (exp:expr): result =
       |_ -> raise (GError "expected int literal")
     end
   |Branch(vlist, e) -> begin
-    let caps = List.map vlist (fun x ->  let _, c, _ = State.find_var st x in c) |> CapSet.of_list in
-    let p_k, c_k = CapSet.diff st.k caps, CapSet.inter st.k caps in
-    let c_st = State.enter_scope {st with k = c_k} in
-    ignore(Thread.create (fun expr -> eval c_st expr) e);
-    V_unit, (c_none, c_none), c_k, p_k
-  end
+      let caps = List.map vlist (fun x ->  let _, c, _ = State.find_var st x in c) |> CapSet.of_list in
+      let p_k, c_k = CapSet.diff st.k caps, CapSet.inter st.k caps in
+      let c_st = State.enter_scope {st with k = c_k} in
+      ignore(Thread.create (fun expr -> eval c_st expr) e);
+      V_unit, (c_none, c_none), CapSet.empty, p_k
+    end
   |Focus(e1, e2) -> raise (GError "unimplemented")
   |Assign(e1, e2) -> begin
       (* this needs another looking-at *)
       let v1, (r1, w1), k', pl = eval st e1 |> autoclone st in
-      (* temporary autoclone for handling LHS *)
-      let st' = st in
-      let v2, (r2, w2), k'', pr = eval st' e2 |> framep st'.k |> maybe_autoclone st' in
+      let st' = {st with k = pl} in
+      let v2, (r2, w2), k'', pr = eval st' e2 |> autoclone st' in
       let c = check_write w1 r1 st'.k in
       let k' = CapSet.add k'' w2 in
       let k', p = CapSet.remove k' c, CapSet.add pr c in
@@ -216,13 +214,13 @@ let rec eval (st:State.t) (exp:expr): result =
       V_unit, (c_none, c_none), k', p
     end
   |Neg e -> begin
-      let v, (r, w), k', p = eval st e |> maybe_autoclone st in
+      let v, (r, w), k', p = eval st e |> autoclone st in
       match State.deref st v with
       | V_int i -> V_int(-1 * i), (r, w), CapSet.empty, p
       | _ -> raise (GError "expected int for integer negation")
     end
   |Not e -> begin
-      let v, (r, w), k', p = eval st e |> maybe_autoclone st in
+      let v, (r, w), k', p = eval st e |> autoclone st in
       match State.deref st v with
       | V_bool i -> V_bool(not i), (r, w), CapSet.empty, p
       | _ -> raise (GError "expected bool for boolean negation")
@@ -233,7 +231,7 @@ and eval_binop st bop e1 e2 =
   (* throw away K' and K'', no caps check atm *)
   let v1, (r1, w1), k', pl = eval st e1 |> autoclone st in
   let st' = {st with k = pl} in
-  let v2, (r2, w2), k'', pr = eval st' e2 |> framep st'.k |> autoclone st' in
+  let v2, (r2, w2), k'', pr = eval st' e2 |> autoclone st' in
   let v' = match (bop, State.deref st v1, State.deref st v2) with
     | (BinopAnd, V_bool b1, V_bool b2) -> V_bool(b1 && b2)
     | (BinopOr, V_bool b1, V_bool b2) -> V_bool(b1 || b2)

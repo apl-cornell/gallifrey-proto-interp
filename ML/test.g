@@ -1,1 +1,1 @@
-let x = 1 in let y = 0 in branch x {sleep(1);y}; sleep(2);y
+let x = 1 in (destroy(x);destroy(x))

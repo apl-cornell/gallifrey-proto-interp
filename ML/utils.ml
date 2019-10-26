@@ -114,7 +114,8 @@ module State = struct
         ~f:(fun a (v,(_,_,m,_)) -> a && m = IMMUT) 
         ~init:true 
         fields *)
-    | V_ptr(l, l', m, t) -> if m = MUT then true else deref st v |> is_mutable st 
+    (* problem TODO: vars are MUT pointers *)
+    | V_ptr(l, l', m, t) -> deref st v |> is_mutable st 
     |_ -> false
 
   let rec destroy_store store cap = 
@@ -180,16 +181,8 @@ let check_write w r k =
   |(a, "ANY") -> a
   |(a,b) -> if CapSet.mem k b then a 
             else raise (GError "incompatible caps")
-(* 
-let framep k (v, (r,w), k', p) =
-  let p = CapSet.diff k k' |> CapSet.union p in
-  v,(r,w),k',p *)
 
-let maybe_autoclone (st:State.t) (v, (r,w), k', p) = 
+let autoclone (st:State.t) (v, (r,w), k', p) = 
   let k', p = if State.is_mutable st v then k', p 
           else CapSet.empty, CapSet.union k' p in
   v,(r,w),k',p
-
-let autoclone (st:State.t) (v, (r,w), k', p) = 
-  let p = CapSet.union k' p in
-  v,(r,w),CapSet.empty,p
