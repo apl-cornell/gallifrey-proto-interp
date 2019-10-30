@@ -20,6 +20,7 @@ type value =
   |V_obj of (var * fieldinfo) list
   (* string option is class cap, boolean is uniqueness *)
   |V_fun of string option * string list * (var * gtype * unique) list * gtype * expr * t_store list
+  (* own location + value's location *)
   |V_ptr of loc * loc * mut * gtype
 and t_store = (var, storeinfo) Hashtbl.t
 and loc = int
