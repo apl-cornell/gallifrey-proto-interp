@@ -202,7 +202,9 @@ let rec eval (st:State.t) (exp:expr): result =
            if t1 <> t2 then raise (GError "types do not match")
            else if m1 <> MUT then raise (GError "LHS is not mutable")
            else if CapSet.mem k' c then raise (GError "c in k'")
-           else Hashtbl.set st.mem l1 (V_ptr(l1, l2', m1, t1))
+           else if State.get_mem st l2' |> State.is_mutable st then
+            Hashtbl.set st.mem l1 (V_ptr(l1, l2', m1, t1))
+           else Hashtbl.set st.mem l1' (State.get_mem st l2')
          end
        (* assigning a value *)
        |V_ptr(l,l',m,t), v -> begin

@@ -1,5 +1,6 @@
 open Eval
 open Utils
+open Core
 
 let eval_test s = 
   let lexbuf = Lexing.from_string s in
@@ -25,10 +26,10 @@ let rec compare_values st a b =
   |V_int i1, V_int i2 -> i1 = i2
   |V_bool b1, V_bool b2 -> b1 = b2
   |V_obj o1, V_obj o2 -> begin 
-      List.fold_left2 
-        (fun acc (n,(t,_,_,l)) (n',(t',_,_,l')) -> 
+      List.fold2_exn
+        ~f:(fun acc (n,(t,_,_,l)) (n',(t',_,_,l')) -> 
            acc && n = n' && t = t' && l = l') 
-        true o1 o2 
+        ~init:true o1 o2 
     end
   |V_unit, V_unit -> true
   |_,_ -> false
@@ -41,8 +42,10 @@ let eval_checkval = [
   ("let x = false in if x {4} else {6}", V_int(6));
   ("let x = 1 in let y = 5 in x + y", V_int(6));
   ("let x = 1 in let y = 5 in y = x; y+y", V_int(2));
-  (* TODO - this aliasing behavior seems... wrong? *)
-  ("let x = 0 in let y = 0 in y = x; y = 100; x", V_int(100));
+  ("let x = 0 in let y = 0 in y = x; y = 100; x", V_int(0));
+  ("let x = 0 in let y = 0 in y = x; y = 100; y", V_int(100));
+  ("let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; x.a = 3; x.a)", V_int(3));
+  ("let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; x.a = 3; y.a)", V_int(2));
   ("let x = 1 in x = x;x", V_int(1));
   ("let x = {mut a : 1} in x.a = x.a;x.a", V_int(1));
   ("let x = 1 in let y = 5 in y = x + y; y+x", V_int(7));
@@ -78,21 +81,26 @@ let eval_failure = [
 
 let run_tests = fun () -> 
   print_endline "check value:";
-  List.iter (fun (s,exp) -> 
+  let failed = List.fold_left ~f:(fun acc (s,exp) -> 
       try 
         (let res,st = eval_test s in
-         (if compare_values st exp res then "." else "F") |> print_string)
-      with |Utils.GError _ -> "E" |> print_string
-    ) eval_checkval;
+         if compare_values st exp res then (print_string "."; acc) else (print_string "F" ; s::acc))
+      with |Utils.GError _ -> (print_string "E" ; s::acc)
+    ) ~init:[] eval_checkval 
+  in
   print_endline "\ncheck eval success:";
-  List.iter (fun s -> 
-      try ignore (eval_test s); print_string "." with
-      | Utils.GError _ -> print_string "F"
-    ) eval_success;
+  let failed = List.fold_left ~f:(fun acc s -> 
+      try ignore (eval_test s); print_string "."; acc with
+      | Utils.GError _ -> print_string "F"; s::acc
+    ) ~init:failed eval_success
+  in
   print_endline "\ncheck eval failure:";
-  List.iter (fun s -> 
-      try ignore (eval_test s); print_string "F" with
-      | Utils.GError _ -> print_string "."
-    ) eval_failure;
+  let failed = List.fold_left ~f:(fun acc s -> 
+      try ignore (eval_test s); print_string "F"; s::acc with
+      | Utils.GError _ -> print_string "."; acc
+    ) ~init:failed eval_failure
+  in
+  print_endline "\nFailed:";
+  List.rev failed |> List.iter ~f:(fun f -> print_endline f);
   print_endline "\ndone!"
 
