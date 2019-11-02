@@ -1,1 +1,1 @@
-let x = 1 in x;x
+let a = {mut n:0} in let f = fun (a | x : <mut n:int>)->unit {a.n = a.n+1} in f(a); a.n

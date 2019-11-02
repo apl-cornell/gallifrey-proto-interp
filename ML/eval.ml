@@ -38,7 +38,7 @@ let rec eval (st:State.t) (exp:expr): result =
       V_fun(cls, caps, params, return, e, store), (c_any, c_none), CapSet.empty, st.k
     end 
   |Apply(fname, args) -> begin
-    (* TODO constructors *)
+      (* TODO constructors, unique args, check captured env *)
       let t, c, loc = State.find_var st fname in
       let v = State.get_mem st loc |> State.deref st in
       match v with
@@ -54,26 +54,35 @@ let rec eval (st:State.t) (exp:expr): result =
           in
           let st', vs_rev, k's, p = List.fold_left ~f:eval_arg ~init:(st,[],[],CapSet.empty) args in
           let vs = List.rev vs_rev in
-          (* TODO unique args *)
+          (* check types for args *)
           let nvs = List.map2_exn 
               ~f:(fun (n,t,u) (v,c) -> 
-                  assert (State.eq_types st (get_type v) t); (n,v,c,t)
+                  if not (State.eq_types st (get_type v) t) then 
+                    raise (GError "argument does not match input type")
+                  else (n,v,c)
                 ) params vs in
           let st' = State.enter_scope st' in
+          let scope = List.hd_exn st'.store in
           (* assign them to store disregarding shadowing rules *)
-          List.iter ~f:(fun (n,v,c,t) -> 
-              let loc1 = State.unique st' in
-              let loc2 = State.unique st' in
-              let store = List.hd_exn st'.store in
-              Hashtbl.remove store n;
-              Hashtbl.add_exn store n (t,c,loc1);
-              Hashtbl.add_exn st.mem loc1 (V_ptr(loc1, loc2, MUT, get_type v));
-              Hashtbl.add_exn st.mem loc2 v
+          List.iter ~f:(fun (n,v,c) -> 
+              match v with
+              |V_ptr(l1, l2, mut, ptr_t) -> begin
+                  if State.is_mutable st' v then
+                    let loc' = State.unique st' in
+                    Hashtbl.add_exn scope n (ptr_t, c, loc');
+                    Hashtbl.add_exn st'.mem loc' (V_ptr(loc', l2, mut, ptr_t));
+                  else
+                    let v = State.deref st' v in
+                    State.add_var st' n c v
+                end
+              |_ -> State.add_var st' n c v
             ) nvs;
           (* eval body *)
           let v, (r, w), k', p = eval st' expr |> autoclone st' in
-          assert (State.eq_types st (get_type v) ret); 
-          v, (r, w), k', p
+          if not (State.eq_types st (get_type v) ret) then 
+            raise (GError "invalid return type")
+          else 
+            v, (r, w), k', p
         end
       |_ -> raise (GError "expected a function")
     end
@@ -212,7 +221,7 @@ let rec eval (st:State.t) (exp:expr): result =
          end
        (* assigning a value *)
        |V_ptr(l,l',m,t), v -> begin
-           if t <> get_type v then raise (GError "types do not match")
+           if not (State.eq_types st t (get_type v)) then raise (GError "types do not match")
            else if CapSet.mem k' c then raise (GError "c in k'")
            else Hashtbl.set st.mem l' v
          end

@@ -31,6 +31,25 @@ and fieldinfo = (gtype * unique * mut * loc)
 and memory = (loc, value) Hashtbl.t
 and classes = (var, gtype) Hashtbl.t
 
+let get_type = function
+  | V_int _ -> T_int
+  | V_bool _ -> T_bool
+  | V_unit -> T_unit
+  | V_obj fields -> begin
+      let t_fields = List.map fields 
+          (fun f -> 
+             let fname = fst f in
+             let t, _, mut, _ = snd f in
+             (fname, t, mut)
+          ) in T_obj(t_fields)
+    end
+  | V_ptr(l, l', m, t) -> t
+  | V_fun(cls, caps, params, return, _, _) -> begin
+      let param_types = List.map params 
+          (fun (_, t, _) -> t)
+      in T_fun(param_types, return)
+    end
+
 module State = struct
   type t = {
     k: CapSet.t;
@@ -183,26 +202,15 @@ module State = struct
     (* do we check the fields of the classes? *)
     |T_cls(cname1), T_cls(cname2) -> cname1 = cname2
     |_ -> false
-end
 
-let get_type = function
-  | V_int _ -> T_int
-  | V_bool _ -> T_bool
-  | V_unit -> T_unit
-  | V_obj fields -> begin
-      let t_fields = List.map fields 
-          (fun f -> 
-             let fname = fst f in
-             let t, _, mut, _ = snd f in
-             (fname, t, mut)
-          ) in T_obj(t_fields)
-    end
-  | V_ptr(l, l', m, t) -> t
-  | V_fun(cls, caps, params, return, _, _) -> begin
-      let param_types = List.map params 
-          (fun (_, t, _) -> t)
-      in T_fun(param_types, return)
-    end
+  let add_var st n c v = 
+    let t = get_type v in
+    let loc1 = unique st in
+    let loc2 = unique st in
+    Hashtbl.add_exn (List.hd_exn st.store) n (t, c, loc1);
+    Hashtbl.add_exn st.mem loc1 (V_ptr(loc1, loc2, MUT, t));
+    Hashtbl.add_exn st.mem loc2 v
+end
 
 let reconcile_read c1 c2 k1 k2 = 
   match c1, c2 with

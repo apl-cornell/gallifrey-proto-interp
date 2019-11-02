@@ -59,6 +59,9 @@ let eval_checkval = [
   ("let x = 3 in let y = 0 in while (x > 0) {y = y + x; x = x - 1}; y", V_int(6));
   ("let x = 3 in let y = 0 in while (x > 1) {y = y + x; x = x - 1}; y", V_int(5));
   ("let x = {mut a : 1, mut b : 2} in destroy(x.a)", V_unit);
+  ("let a = 1 in let f = fun (a | x : int)->int { x } in f(a)", V_int(1));
+  ("let a = 1 in let f = fun (a | x : int)->int { x+1 } in f(a)", V_int(2));
+  ("let a = 1 in let f = fun (a | x : int)->int { x+1 } in a = f(a); a", V_int(2));
   (* TODO functions *)
 ]
 

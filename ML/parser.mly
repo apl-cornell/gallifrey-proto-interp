@@ -10,11 +10,7 @@ let merge (fn,pos1,_) (_,_,pos2) = (fn,pos1,pos2)
 let sort_field t_obj = 
   let sorted = List.sort_uniq (fun (x,_,_) (y,_,_) -> String.compare x y) t_obj in
   if List.length sorted <> List.length t_obj then raise DuplicateField
-  else List.map (fun (a,b,c) -> 
-    match c with
-    |U -> (a, b, MUT)
-    |A -> (a, b, IMMUT)
-  ) sorted
+  else sorted
 
 let sort_obj_field t_obj = 
   let sorted = List.sort_uniq (fun (x,_,_,_) (y,_,_,_) -> String.compare x y) t_obj in
@@ -69,7 +65,7 @@ type :
 | T_INT {T_int}
 | T_BOOL {T_bool}
 | LT typelist ARROW type GT {T_fun($2, $4)}
-| LT paramlist GT {T_obj(sort_field $2)}
+| LT fieldlist GT {T_obj(sort_field $2)}
 | T_UNIT {T_unit}
 | CVAR {T_cls(snd $1)}
 
@@ -86,6 +82,12 @@ paramlist :
 | U VAR COLON type {[(snd $2, $4, U)]}
 | VAR COLON type COMMA paramlist {(snd $1, $3, A)::$5}
 | U VAR COLON type COMMA paramlist {(snd $2, $4, U)::$6}
+
+fieldlist :
+| VAR COLON type {[(snd $1, $3, IMMUT)]}
+| MUT VAR COLON type {[(snd $2, $4, MUT)]}
+| VAR COLON type COMMA fieldlist {(snd $1, $3, IMMUT)::$5}
+| MUT VAR COLON type COMMA fieldlist {(snd $2, $4, MUT)::$6}
 
 exprlist :
 | expr {[$1]}
@@ -138,7 +140,7 @@ expr :
   | BRANCH varlist LBRACE expr RBRACE     { Branch($2, $4) }
   | LET VAR ASSIGN expr IN expr { Let(snd $2, $4, $6) }
   | expr ASSIGN expr { Assign($1, $3) }
-  | CLASS CVAR LBRACE paramlist RBRACE { Class(snd $2, T_obj(sort_field $4)) }
+  | CLASS CVAR LBRACE fieldlist RBRACE { Class(snd $2, T_obj(sort_field $4)) }
   
 /* Programs */
 p : expr EOF                 { $1 }
