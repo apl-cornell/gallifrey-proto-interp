@@ -38,6 +38,7 @@ let rec eval (st:State.t) (exp:expr): result =
       V_fun(cls, caps, params, return, e, store), (c_any, c_none), CapSet.empty, st.k
     end 
   |Apply(fname, args) -> begin
+    (* TODO constructors *)
       let t, c, loc = State.find_var st fname in
       let v = State.get_mem st loc |> State.deref st in
       match v with
@@ -56,7 +57,7 @@ let rec eval (st:State.t) (exp:expr): result =
           (* TODO unique args *)
           let nvs = List.map2_exn 
               ~f:(fun (n,t,u) (v,c) -> 
-                  assert (get_type v = t); (n,v,c,t)
+                  assert (State.eq_types st (get_type v) t); (n,v,c,t)
                 ) params vs in
           let st' = State.enter_scope st' in
           (* assign them to store disregarding shadowing rules *)
@@ -71,7 +72,7 @@ let rec eval (st:State.t) (exp:expr): result =
             ) nvs;
           (* eval body *)
           let v, (r, w), k', p = eval st' expr |> autoclone st' in
-          assert (get_type v = ret); 
+          assert (State.eq_types st (get_type v) ret); 
           v, (r, w), k', p
         end
       |_ -> raise (GError "expected a function")
@@ -200,7 +201,7 @@ let rec eval (st:State.t) (exp:expr): result =
        (* aliasing *)
        |V_ptr(l1,l1',m1,t1), V_ptr(l2,l2',m2,t2) -> begin
            let v_right = State.get_mem st l2' in
-           if t1 <> t2 then raise (GError "types do not match")
+           if not (State.eq_types st t1 t2) then raise (GError "types do not match")
            else if m1 <> MUT then raise (GError "LHS is not mutable")
            else if CapSet.mem k' c then raise (GError "c in k'")
            (* if RHS is mutable *)
@@ -230,7 +231,15 @@ let rec eval (st:State.t) (exp:expr): result =
       | V_bool i -> V_bool(not i), (r, w), CapSet.empty, p
       | _ -> raise (GError "expected bool for boolean negation")
     end
-  |Class(c,t) -> raise (GError "unimplemented")
+  |Class(c,t) -> 
+    match t with
+    |T_obj _ -> begin
+        if State.cls_exists st c then raise (GError "class name already defined")
+        else
+          Hashtbl.add_exn (List.hd_exn st.classes) c t;
+        V_unit, (c_any, c_none), CapSet.empty, st.k
+      end
+    |_ -> raise (GError "expected object type")
 
 and eval_binop st bop e1 e2 = 
   (* throw away K' and K'', no caps check atm *)

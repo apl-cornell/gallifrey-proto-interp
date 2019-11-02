@@ -29,13 +29,14 @@ and storeinfo = (gtype * cap * loc)
 (* type, unique, mutable, location *)
 and fieldinfo = (gtype * unique * mut * loc)
 and memory = (loc, value) Hashtbl.t
+and classes = (var, gtype) Hashtbl.t
 
 module State = struct
   type t = {
     k: CapSet.t;
     store: t_store list;
     focus: (cap * value) option; 
-    classes: (string * gtype) list; (* unsure about this one *)
+    classes: classes list; (* unsure about this one *)
     mem: memory;
     counter: int ref;
   }
@@ -44,7 +45,7 @@ module State = struct
     k = CapSet.empty;
     store = [Hashtbl.create (module String)];
     focus = None;
-    classes = [];
+    classes = [Hashtbl.create (module String)];
     mem = Hashtbl.create (module Int);
     counter = ref 0;
   }
@@ -54,7 +55,8 @@ module State = struct
     s.counter := !(s.counter) + 1; !(s.counter)
 
   let enter_scope s = 
-    {s with store = (Hashtbl.create (module String))::s.store}
+    {s with store = (Hashtbl.create (module String))::s.store;
+            classes = (Hashtbl.create (module String))::s.classes}
 
   (* try to find variable in store *)
   let find_var s x = 
@@ -81,6 +83,33 @@ module State = struct
 
   let var_exists s x = 
     match find_var_opt s x with
+    | Some v -> true
+    | None -> false
+
+  let find_cls s x = 
+    let rec find_helper st x =
+      match st with
+      |[] -> raise (GError ("class " ^ x ^ " not found"))
+      |h::t -> begin
+          match Hashtbl.find h x with
+          |Some v -> v
+          |None -> find_helper t x
+        end
+    in find_helper s.classes x
+
+  let find_cls_opt s x = 
+    let rec find_helper st x =
+      match st with
+      |[] -> None
+      |h::t -> begin
+          match Hashtbl.find h x with
+          |Some v -> Some v
+          |None -> find_helper t x
+        end
+    in find_helper s.classes x
+
+  let cls_exists s x = 
+    match find_cls_opt s x with
     | Some v -> true
     | None -> false
 
@@ -127,7 +156,7 @@ module State = struct
         ~init:false 
         fields
     | V_ptr(l, l', m, t) -> begin
-      (* TODO do we want to check for pointer mut? i feel like no *)
+        (* TODO do we want to check for pointer mut? i feel like no *)
         let v' = get_mem st l' in
         is_mutable st v'
       end
@@ -141,6 +170,19 @@ module State = struct
 
   let destroy st cap = 
     destroy_store st.store cap
+  
+  let rec eq_types st t1 t2 = 
+    match t1, t2 with
+    |T_unit, T_unit -> true
+    |T_int, T_int -> true
+    |T_bool, T_bool -> true
+    |T_fun(i,o), T_fun(i2, o2) when i = i2 && o = o2 -> true
+    |T_obj f1, T_obj f2 when f1 = f2 -> true
+    |T_obj _, T_cls(cname) -> eq_types st t1 (find_cls st cname)
+    |T_cls(cname), T_obj _ -> eq_types st t2 (find_cls st cname)
+    (* do we check the fields of the classes? *)
+    |T_cls(cname1), T_cls(cname2) -> cname1 = cname2
+    |_ -> false
 end
 
 let get_type = function
