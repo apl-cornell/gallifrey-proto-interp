@@ -11,6 +11,7 @@ type gtype =
   | T_bool 
   | T_fun of (gtype list) * gtype
   | T_obj of (var * gtype * mut) list
+  | T_cls of string
 and cap = string
 and var = string
 and mut = MUT | IMMUT

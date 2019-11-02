@@ -35,6 +35,7 @@ let error lexbuf msg =
 
 let digit = ['-']?['0'-'9']
 let id = ['a'-'z'] ['a'-'z' '0'-'9']*
+let cid = ['A'-'Z'] ['a'-'z' '0'-'9']*
 let ws = [' ' '\t']
 
 rule token = parse
@@ -84,6 +85,7 @@ rule token = parse
 | "mut"    { MUT(info lexbuf) }
 | "class"    { CLASS(info lexbuf) }
 | id as v { VAR(info lexbuf, v) }
+| cid as v { CVAR(info lexbuf, v) }
 | digit+ as n { INT(info lexbuf, int_of_string n) }
 | eof     { EOF }
 | _ as c  { error lexbuf (String.make 1 c) }

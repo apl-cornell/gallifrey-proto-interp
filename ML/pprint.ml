@@ -61,3 +61,4 @@ and fmt_type t =
   | T_bool -> "bool"
   | T_fun(params, return) -> sp "%s -> %s" (fmt_list params fmt_type) (fmt_type return)
   | T_obj fields -> "<object>"
+  | T_cls name -> name

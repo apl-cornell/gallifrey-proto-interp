@@ -34,8 +34,8 @@ module State = struct
   type t = {
     k: CapSet.t;
     store: t_store list;
-    focus: unit; (* stack of maps? *)
-    classes: unit; (* unsure about this one *)
+    focus: (cap * value) option; 
+    classes: (string * gtype) list; (* unsure about this one *)
     mem: memory;
     counter: int ref;
   }
@@ -43,8 +43,8 @@ module State = struct
   let init = {
     k = CapSet.empty;
     store = [Hashtbl.create (module String)];
-    focus = ();
-    classes = ();
+    focus = None;
+    classes = [];
     mem = Hashtbl.create (module Int);
     counter = ref 0;
   }
@@ -87,6 +87,12 @@ module State = struct
   (* get value at memory location *)
   let get_mem s loc = Hashtbl.find_exn s.mem loc
 
+  let double_deref st loc = 
+    let p = get_mem st loc in
+    match p with
+    |V_ptr(_,loc',m,_) -> get_mem st loc'
+    |_ -> raise (GError "expected pointer")
+
   (* check it capability is in K *)
   let has_cap s c = CapSet.mem s.k c
 
@@ -110,13 +116,22 @@ module State = struct
   (* this might have infinite loop *)
   let rec is_mutable st v = 
     match v with
-    |V_obj fields -> true
-      (* List.fold_left 
-        ~f:(fun a (v,(_,_,m,_)) -> a && m = IMMUT) 
-        ~init:true 
-        fields *)
-    (* problem TODO: vars are MUT pointers *)
-    | V_ptr(l, l', m, t) -> deref st v |> is_mutable st 
+    |V_obj fields -> 
+      List.fold_left 
+        ~f:(fun a (v,(_,_,m,loc)) -> 
+            if m = MUT then true
+            else 
+              let v' = double_deref st loc in
+              a || is_mutable st v'
+          ) 
+        ~init:false 
+        fields
+    | V_ptr(l, l', m, t) -> begin
+      (* TODO do we want to check for pointer mut? i feel like no *)
+        let v' = get_mem st l' in
+        is_mutable st v'
+      end
+    | V_fun(_) -> true
     |_ -> false
 
   let rec destroy_store store cap = 
@@ -133,19 +148,19 @@ let get_type = function
   | V_bool _ -> T_bool
   | V_unit -> T_unit
   | V_obj fields -> begin
-    let t_fields = List.map fields 
-    (fun f -> 
-      let fname = fst f in
-      let t, _, mut, _ = snd f in
-      (fname, t, mut)
-    ) in T_obj(t_fields)
-  end
+      let t_fields = List.map fields 
+          (fun f -> 
+             let fname = fst f in
+             let t, _, mut, _ = snd f in
+             (fname, t, mut)
+          ) in T_obj(t_fields)
+    end
   | V_ptr(l, l', m, t) -> t
   | V_fun(cls, caps, params, return, _, _) -> begin
-    let param_types = List.map params 
-    (fun (_, t, _) -> t)
-    in T_fun(param_types, return)
-  end
+      let param_types = List.map params 
+          (fun (_, t, _) -> t)
+      in T_fun(param_types, return)
+    end
 
 let reconcile_read c1 c2 k1 k2 = 
   match c1, c2 with
@@ -158,8 +173,8 @@ let reconcile_read c1 c2 k1 k2 =
   |(a,"NONE") -> c_none
   (* read relabel *)
   |(a,b) -> if CapSet.mem k1 a then b 
-      else if CapSet.mem k2 b then a
-      else c_none (* drop read  *)
+    else if CapSet.mem k2 b then a
+    else c_none (* drop read  *)
 
 let reconcile_write c1 c2 = 
   match c1, c2 with
@@ -181,9 +196,9 @@ let check_write w r k =
   |("ANY", b) -> b
   |(a, "ANY") -> a
   |(a,b) -> if CapSet.mem k b then a 
-            else raise (GError "incompatible caps")
+    else raise (GError "incompatible caps")
 
 let autoclone (st:State.t) (v, (r,w), k', p) = 
   let k', p = if State.is_mutable st v then k', p 
-          else CapSet.empty, CapSet.union k' p in
+    else CapSet.empty, CapSet.union k' p in
   v,(r,w),k',p

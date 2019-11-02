@@ -199,11 +199,14 @@ let rec eval (st:State.t) (exp:expr): result =
       (match (v1, v2) with
        (* aliasing *)
        |V_ptr(l1,l1',m1,t1), V_ptr(l2,l2',m2,t2) -> begin
+           let v_right = State.get_mem st l2' in
            if t1 <> t2 then raise (GError "types do not match")
            else if m1 <> MUT then raise (GError "LHS is not mutable")
            else if CapSet.mem k' c then raise (GError "c in k'")
-           else if State.get_mem st l2' |> State.is_mutable st then
-            Hashtbl.set st.mem l1 (V_ptr(l1, l2', m1, t1))
+           (* if RHS is mutable *)
+           else if State.is_mutable st v_right then
+             Hashtbl.set st.mem l1 (V_ptr(l1, l2', m1, t1))
+             (* if RHS is immutable *)
            else Hashtbl.set st.mem l1' (State.get_mem st l2')
          end
        (* assigning a value *)

@@ -23,7 +23,7 @@ let sort_obj_field t_obj =
 %}
 
 %token <Ast.info * int> INT
-%token <Ast.info * string> VAR
+%token <Ast.info * string> VAR CVAR
 %token <Ast.info> PLUS MINUS TIMES DIV MOD
   LPAREN RPAREN TRUE FALSE
   EQUALS NOTEQUALS LT LEQ GT GEQ
@@ -71,6 +71,7 @@ type :
 | LT typelist ARROW type GT {T_fun($2, $4)}
 | LT paramlist GT {T_obj(sort_field $2)}
 | T_UNIT {T_unit}
+| CVAR {T_cls(snd $1)}
 
 typelist :
 | type {[$1]}
@@ -137,7 +138,7 @@ expr :
   | BRANCH varlist LBRACE expr RBRACE     { Branch($2, $4) }
   | LET VAR ASSIGN expr IN expr { Let(snd $2, $4, $6) }
   | expr ASSIGN expr { Assign($1, $3) }
-  | CLASS VAR LBRACE paramlist RBRACE { Class(snd $2, T_obj(sort_field $4)) }
+  | CLASS CVAR LBRACE paramlist RBRACE { Class(snd $2, T_obj(sort_field $4)) }
   
 /* Programs */
 p : expr EOF                 { $1 }
