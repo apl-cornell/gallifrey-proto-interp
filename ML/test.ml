@@ -28,7 +28,7 @@ let rec compare_values st a b =
   |V_obj o1, V_obj o2 -> begin 
       List.fold2_exn
         ~f:(fun acc (n,(t,_,_,l)) (n',(t',_,_,l')) -> 
-           acc && n = n' && t = t' && l = l') 
+            acc && n = n' && t = t' && l = l') 
         ~init:true o1 o2 
     end
   |V_unit, V_unit -> true
@@ -62,6 +62,11 @@ let eval_checkval = [
   ("let a = 1 in let f = fun (a | x : int)->int { x } in f(a)", V_int(1));
   ("let a = 1 in let f = fun (a | x : int)->int { x+1 } in f(a)", V_int(2));
   ("let a = 1 in let f = fun (a | x : int)->int { x+1 } in a = f(a); a", V_int(2));
+  ("let a = 1 in let f = fun (a | x : int)->unit { x = 0 } in f(a); a", V_int(1));
+  ("let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; x.a)", V_int(1));
+  ("let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; x.a = 0; y.a)", V_int(1));
+  ("let x = {mut a : 1} in let y = {mut a : 2} in (y = x; x.a = 0; y.a)", V_int(0));
+  ("let x = {mut a : 1} in let y = {mut a : 2} in (y = x; x.a = 0; x.a)", V_int(0));
   (* TODO functions *)
 ]
 
@@ -78,8 +83,7 @@ let eval_failure = [
   "let x = 1 in (destroy(x);x)";
   "let x = 1 in branch x {x}; x";
   "let x = {mut a : 1, mut b : 2} in destroy(x.a);x.b";
-  (* TODO should this fail? *)
-  "let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; x.a)";
+  "let a = 1 in let f = fun (a | x : int)->int { x } in destroy(a);f(a)"
 ]
 
 let run_tests = fun () -> 
@@ -87,19 +91,19 @@ let run_tests = fun () ->
   let failed = List.fold_left ~f:(fun acc (s,exp) -> 
       try 
         (let res,st = eval_test s in
-         if compare_values st exp res then (print_string "."; acc) else (print_string "F" ; s::acc))
-      with |Utils.GError _ -> (print_string "E" ; s::acc)
+         if compare_values st exp res then (print_string "."; acc) else (print_string "F" ; (s ^ "\nincorrect value")::acc))
+      with |Utils.GError m -> (print_string "E" ; (s^"\n"^m)::acc)
     ) ~init:[] eval_checkval 
   in
   print_endline "\ncheck eval success:";
   let failed = List.fold_left ~f:(fun acc s -> 
       try ignore (eval_test s); print_string "."; acc with
-      | Utils.GError _ -> print_string "F"; s::acc
+      | Utils.GError m -> print_string "F"; (s^"\n"^m)::acc
     ) ~init:failed eval_success
   in
   print_endline "\ncheck eval failure:";
   let failed = List.fold_left ~f:(fun acc s -> 
-      try ignore (eval_test s); print_string "F"; s::acc with
+      try ignore (eval_test s); print_string "F"; (s ^ "\nexpected runtime error")::acc with
       | Utils.GError _ -> print_string "."; acc
     ) ~init:failed eval_failure
   in
