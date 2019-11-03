@@ -241,6 +241,9 @@ let rec eval (st:State.t) (exp:expr): result =
       | _ -> raise (GError "expected bool for boolean negation")
     end
   |Class(c,t) -> 
+    (* print_endline ("\n" ^ c); 
+    print_endline (stringify_hashtbl_stack st.store); 
+    print_endline (stringify_hashtbl_stack st.classes); *)
     match t with
     |T_obj _ -> begin
         if State.cls_exists st c then raise (GError "class name already defined")

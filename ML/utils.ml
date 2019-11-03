@@ -60,8 +60,9 @@ module State = struct
     counter: int ref;
   }
 
-  let init = {
-    k = CapSet.empty;
+  let init = fun () -> 
+  {
+    k = CapSet.singleton c_any;
     store = [Hashtbl.create (module String)];
     focus = None;
     classes = [Hashtbl.create (module String)];
@@ -74,20 +75,12 @@ module State = struct
     s.counter := !(s.counter) + 1; !(s.counter)
 
   let enter_scope s = 
-    {s with store = (Hashtbl.create (module String))::s.store;
-            classes = (Hashtbl.create (module String))::s.classes}
+    let ht_s = Hashtbl.create (module String) in
+    let ht_c = Hashtbl.create (module String) in
+    {s with store = ht_s::s.store;
+            classes = ht_c::s.classes}
 
   (* try to find variable in store *)
-  let find_var s x = 
-    let rec find_helper st x =
-      match st with
-      |[] -> raise (GError ("var " ^ x ^ " not found"))
-      |h::t -> begin
-          match Hashtbl.find h x with
-          |Some v -> v
-          |None -> find_helper t x
-        end
-    in find_helper s.store x
 
   let find_var_opt s x = 
     let rec find_helper st x =
@@ -105,27 +98,27 @@ module State = struct
     | Some v -> true
     | None -> false
 
-  let find_cls s x = 
-    let rec find_helper st x =
-      match st with
-      |[] -> raise (GError ("class " ^ x ^ " not found"))
-      |h::t -> begin
-          match Hashtbl.find h x with
-          |Some v -> v
-          |None -> find_helper t x
-        end
-    in find_helper s.classes x
+  let find_var s x = 
+    match find_var_opt s x with
+    | Some v -> v
+    | None -> raise (GError ("var " ^ x ^ " not found"))
 
   let find_cls_opt s x = 
-    let rec find_helper st x =
-      match st with
+    let rec find_helper classes x =
+      match classes with
       |[] -> None
       |h::t -> begin
           match Hashtbl.find h x with
-          |Some v -> Some v
+          |Some(T_obj(f)) as o -> o
           |None -> find_helper t x
+          |_ -> raise (GError ("expected object type"))
         end
     in find_helper s.classes x
+
+  let find_cls s x = 
+    match find_cls_opt s x with
+    | Some v -> v
+    | None -> raise (GError ("class " ^ x ^ " not found"))
 
   let cls_exists s x = 
     match find_cls_opt s x with
@@ -189,7 +182,7 @@ module State = struct
 
   let destroy st cap = 
     destroy_store st.store cap
-  
+
   let rec eq_types st t1 t2 = 
     match t1, t2 with
     |T_unit, T_unit -> true
@@ -252,3 +245,11 @@ let autoclone (st:State.t) (v, (r,w), k', p) =
   let k', p = if State.is_mutable st v then k', p 
     else CapSet.empty, CapSet.union k' p in
   v,(r,w),k',p
+
+let stringify_hashtbl_stack s = 
+  let rec helper s acc = 
+    match s with 
+    |h::t -> helper t (acc @ Hashtbl.keys h)
+    |[] -> acc
+  in
+  "[" ^ (String.concat ~sep:"," (helper s [])) ^ "]"

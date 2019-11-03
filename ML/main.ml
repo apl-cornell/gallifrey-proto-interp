@@ -18,7 +18,7 @@ let () =
         (Lexing.lexeme_end lexbuf - !Lexer.linestart - 1);
       exit 1 
       in 
-    let st = Eval.init_state in
+    let st = Eval.init_state () in
     let res, _, _, _ = Eval.eval st ast in
     let res = State.deref st res |> State.deref st in
     print_endline (Pprint.fmt_value res)

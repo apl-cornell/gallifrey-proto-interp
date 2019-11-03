@@ -13,7 +13,8 @@ let eval_test s =
         s;
       exit 1 
   in 
-  let st = Eval.init_state in
+  let st = Eval.init_state () in
+  (* print_endline (string_of_int !(st.counter)); *)
   let res, _, _, _ = Eval.eval st ast in
   res,st
 
@@ -51,6 +52,7 @@ let eval_checkval = [
   ("let x = 1 in let y = 5 in y = x + y; y+x", V_int(7));
   ("let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; y.a)", V_int(1));
   ("let x = 1 in let y = 5 in (destroy(x);y)", V_int(5));
+  ("let x = 1 in let y = x in (destroy(x);y)", V_int(1));
   ("let x = true in if x { !x } else { x }", V_bool(false));
   ("let x = 1 in (x = x + 1 ; x)", V_int(2));
   ("let x = 1 in let y = 0 in branch x {x}; y", V_int(0));
@@ -63,10 +65,17 @@ let eval_checkval = [
   ("let a = 1 in let f = fun (a | x : int)->int { x+1 } in f(a)", V_int(2));
   ("let a = 1 in let f = fun (a | x : int)->int { x+1 } in a = f(a); a", V_int(2));
   ("let a = 1 in let f = fun (a | x : int)->unit { x = 0 } in f(a); a", V_int(1));
+  ("let a = 1 in let f = fun (a | x : int)->int { x = 0; x } in f(a)", V_int(0));
+  ("let a = 1 in let f = fun (a | x : int)->int { x = 0; x } in f(a); a", V_int(1));
+  ("let a = 1 in let f = fun (a | x : int)->int { x = 0; x } in a = f(a); a", V_int(0));
   ("let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; x.a)", V_int(1));
   ("let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; x.a = 0; y.a)", V_int(1));
   ("let x = {mut a : 1} in let y = {mut a : 2} in (y = x; x.a = 0; y.a)", V_int(0));
   ("let x = {mut a : 1} in let y = {mut a : 2} in (y = x; x.a = 0; x.a)", V_int(0));
+  ("class C {mut a : int}; let x = {mut a : 2} in let f = fun (x | a : C)->C { a } in f(x);x.a", V_int(2));
+  ("class C {mut a : int}; let x = {mut a : 2} in let f = fun (x | a : C)->int { a.a } in f(x)", V_int(2));
+  ("class C {mut a : int}; let f = fun (| a : int)->C { {mut a:a} } in (f(1)).a", V_int(1));
+  ("class C {mut a : int}", V_unit);
   (* TODO functions *)
 ]
 
@@ -74,6 +83,7 @@ let eval_checkval = [
 let eval_success = [
   "let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; y)";
   "let x = {mut a : 1} in let y = {mut a : 2} in (y = x; y)";
+  "class C {mut a : int}; let x = {mut a : 2} in let f = fun (x | a : C)->C { a } in f(x)";
 ]
 
 (* check that evaluation failed *)
@@ -83,7 +93,8 @@ let eval_failure = [
   "let x = 1 in (destroy(x);x)";
   "let x = 1 in branch x {x}; x";
   "let x = {mut a : 1, mut b : 2} in destroy(x.a);x.b";
-  "let a = 1 in let f = fun (a | x : int)->int { x } in destroy(a);f(a)"
+  "let a = 1 in let f = fun (a | x : int)->int { x } in destroy(a);f(a)";
+  "let a = 1 in let f = fun (a | x : int)->unit { destroy(x) } in f(a);a"
 ]
 
 let run_tests = fun () -> 
