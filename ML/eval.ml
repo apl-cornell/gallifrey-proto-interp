@@ -9,10 +9,6 @@ let init_state = State.init
 (* value, read, write, K', P *)
 type result = value * (cap * cap) * CapSet.t * CapSet.t
 
-let print_set set = 
-  List.iter ~f:(fun x -> printf "%s " x) (CapSet.to_list set);
-  print_endline ""
-
 let rec eval (st:State.t) (exp:expr): result = 
   (* do we transfer K to P in all of these *)
   match exp with
@@ -44,10 +40,12 @@ let rec eval (st:State.t) (exp:expr): result =
       let v = State.get_mem st loc |> State.deref st in
       match v with
       |V_fun(cls, caps, params, ret, expr, store) -> begin
+          (* TODO bug: mutable arguments (objects) consume their caps when evaluated *)
           (* eval all the arguments from L to R *)
           let eval_arg e (state, vs, k's, p_) =
             let v, (r, w), k', p = eval state e |> autoclone state in
-            let state' = {state with k = p} in
+            (* make sure W caps aren't consumed - potential workaroudn? *)
+            let state' = {state with k = CapSet.add p w} in
             state', (v,r)::vs, k'::k's, p
           in
           let st, vs, k's, p = List.fold_right ~f:eval_arg ~init:(st,[],[],CapSet.empty) args in
@@ -61,6 +59,7 @@ let rec eval (st:State.t) (exp:expr): result =
                     raise (GError "argument does not match input type")
                   else (n,v,c)
                 ) params vs in
+          (* TODO validate env *)
           (* assign them to store in new scope, disregarding shadowing rules *)
           let st = State.enter_scope st in
           List.iter ~f:(fun (arg_n,arg_v,c) -> 
@@ -111,10 +110,10 @@ let rec eval (st:State.t) (exp:expr): result =
     end
   |Get(e,fname) -> begin
       let v, (r, w), k', p = eval st e |> autoclone st in
-      print_endline r;
+      (* print_endline r;
       print_endline w;
       stringify_capset k' |> print_endline;
-      stringify_capset p |> print_endline;
+      stringify_capset p |> print_endline; *)
       match State.deref st v with
       |V_obj fields -> begin
           let (t,u,mut,loc) = List.Assoc.find_exn fields ~equal:(=) fname in
@@ -124,7 +123,7 @@ let rec eval (st:State.t) (exp:expr): result =
             |IMMUT -> c_none
           in
           let r = match u with
-            |U -> r ^ "." ^ fname (* TODO figure this out *)
+            |U -> r ^ "." ^ fname (* TODO only while focused! *)
             |A -> r
           in
           let fval = State.get_mem st loc in
@@ -198,7 +197,31 @@ let rec eval (st:State.t) (exp:expr): result =
       ignore(Thread.create (fun expr -> eval c_st expr) e);
       V_unit, (c_none, c_none), CapSet.empty, p_k
     end
-  |Focus(e1, e2) -> raise (GError "unimplemented")
+  |Focus(e1, e2) -> begin
+    (* do we NEED to focus a named class? *)
+      let v, (r, w), k', p = eval st e1 |> autoclone st in
+      let st = State.enter_scope st in
+      match v, State.deref st v with
+      |(V_ptr(l1, l2, _, T_obj ft), V_obj fields) -> begin
+          let unique_caps = List.filter ~f:(fun (v, (t,u,m,l)) -> u = U) fields |> 
+                            List.map ~f:(fun (v, (t,u,m,l)) -> w ^ "." ^ v) |>
+                            CapSet.of_list in
+          let st' = {
+            st with focus = Some (w, T_obj ft, l2); 
+            (* add unique caps, remove object's cap *)
+            k = CapSet.remove (CapSet.union p unique_caps) w
+          } in
+          let v2, (r2, w2), k'', p2 = eval st' e2 |> autoclone st' in
+          (* if all unique caps remain, add object back, otherwise consume *)
+          if CapSet.diff unique_caps p2 = CapSet.empty then
+            let p = CapSet.add (CapSet.diff p2 unique_caps) w in
+            v2, (r2, w2), k'', p
+          else
+            let p = CapSet.remove (CapSet.diff p2 unique_caps) w in
+            v2, (r2, w2), k'', p
+        end
+      |_ -> raise (GError "expected object")
+    end
   |Assign(e1, e2) -> begin
       (* this needs another looking-at *)
       let v1, (r1, w1), k', pl = eval st e1 |> autoclone st in
@@ -242,11 +265,11 @@ let rec eval (st:State.t) (exp:expr): result =
       | _ -> raise (GError "expected bool for boolean negation")
     end
   |This -> begin
-    (* nothing is consumed, TODO immutable pointer; can we apply framing here? *)
-    match st.focus with
-    |Some (c, t, loc) -> V_ptr(-1, loc, IMMUT, t), (c, c_none), CapSet.empty, st.k
-    |None -> raise (GError "not in focus")
-  end
+      (* nothing is consumed, TODO immutable pointer; can we apply framing here? *)
+      match st.focus with
+      |Some (c, t, loc) -> V_ptr(-1, loc, IMMUT, t), (c, c_none), CapSet.empty, st.k
+      |None -> raise (GError "not in focus")
+    end
   |Class(c,t) -> 
     match t with
     |T_obj fields -> begin

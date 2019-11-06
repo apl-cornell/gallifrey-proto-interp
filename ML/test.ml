@@ -71,6 +71,9 @@ let eval_checkval = [
   ("let a = 1 in let f = fun (a | x : int)->int { x = 0; x } in f(a)", V_int(0));
   ("let a = 1 in let f = fun (a | x : int)->int { x = 0; x } in f(a); a", V_int(1));
   ("let a = 1 in let f = fun (a | x : int)->int { x = 0; x } in a = f(a); a", V_int(0));
+  (* TODO mutable object == consumes cap? *)
+  ("let x = {mut a : 1} in x; x.a", V_int(1));
+  ("let x = {mut a : 1} in x.a; x.a", V_int(1));
   ("let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; x.a)", V_int(1));
   ("let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; x.a = 0; y.a)", V_int(1));
   ("let x = {mut a : 1} in let y = {mut a : 2} in (y = x; x.a = 0; y.a)", V_int(0));
@@ -95,7 +98,7 @@ let eval_success = [
   "let x = {mut a : 1} in let y = {mut a : 2} in (y.a = x.a; y)";
   "let x = {mut a : 1} in let y = {mut a : 2} in (y = x; y)";
   "class C {mut a : int}; let x = {mut a : 2} in let f = fun (x | a : C)->C { a } in f(x)";
-  "class C {mut a : int}; let x = {mut a : 2} in let f = fun (x | a : C)->int { let y = a in y } in f(x)";
+  "class C {mut a : int}; let x = {mut a : 2} in let f = fun (x | a : C)->C { let y = a in y } in f(x)";
 ]
 
 (* check that evaluation failed *)
