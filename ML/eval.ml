@@ -25,16 +25,17 @@ let rec eval (st:State.t) (exp:expr): result =
       else 
         let k' = CapSet.singleton c in
         let p = CapSet.remove st.k c in
-        (* P is K\c *)
+        (* framing; P is K\c *)
         State.get_mem st loc, (c, c), k', p
     end
   |Binary(op, e1, e2) -> eval_binop st op e1 e2
   |Fun(cls, caps, params, return, e) -> begin
       let store = match st.store with
         |[] -> raise (GError "empty store")
+        (* only copy head of scoping stack *)
         |h::t -> (Hashtbl.copy h):: t
       in
-      (* no k', k is moved to p *)
+      (* no k', k is moved to p because nothing is really closed over/consumed here *)
       V_fun(cls, caps, params, return, e, store), (c_any, c_none), CapSet.empty, st.k
     end 
   |Apply(fname, args) -> begin
@@ -43,42 +44,42 @@ let rec eval (st:State.t) (exp:expr): result =
       let v = State.get_mem st loc |> State.deref st in
       match v with
       |V_fun(cls, caps, params, ret, expr, store) -> begin
-          (* validate caps, for now treat as vars *)
-          let caps = List.map caps (fun x ->  let _, c, _ = State.find_var st x in c) in
-          List.iter caps (fun x -> if CapSet.mem st.k x then () else raise (GError "capability not found"));
           (* eval all the arguments from L to R *)
-          let eval_arg (state, vs, k's, p_) e =
+          let eval_arg e (state, vs, k's, p_) =
             let v, (r, w), k', p = eval state e |> autoclone state in
             let state' = {state with k = p} in
             state', (v,r)::vs, k'::k's, p
           in
-          let st', vs_rev, k's, p = List.fold_left ~f:eval_arg ~init:(st,[],[],CapSet.empty) args in
-          let vs = List.rev vs_rev in
+          let st, vs, k's, p = List.fold_right ~f:eval_arg ~init:(st,[],[],CapSet.empty) args in
+          (* validate caps, for now treat as vars *)
+          let caps = List.map caps (fun x ->  let _, c, _ = State.find_var st x in c) in
+          List.iter caps (fun x -> if CapSet.mem st.k x then () else raise (GError "capability not found"));
           (* check types for args *)
-          let nvs = List.map2_exn 
+          let arg_value_list = List.map2_exn 
               ~f:(fun (n,t,u) (v,c) -> 
                   if not (State.eq_types st (get_type v) t) then 
                     raise (GError "argument does not match input type")
                   else (n,v,c)
                 ) params vs in
-          let st' = State.enter_scope st' in
-          let scope = List.hd_exn st'.store in
-          (* assign them to store disregarding shadowing rules *)
-          List.iter ~f:(fun (n,v,c) -> 
-              match v with
+          (* assign them to store in new scope, disregarding shadowing rules *)
+          let st = State.enter_scope st in
+          List.iter ~f:(fun (arg_n,arg_v,c) -> 
+              match arg_v with
               |V_ptr(l1, l2, mut, ptr_t) -> begin
-                  if State.is_mutable st' v then
-                    let loc' = State.unique st' in
-                    Hashtbl.add_exn scope n (ptr_t, c, loc');
-                    Hashtbl.add_exn st'.mem loc' (V_ptr(loc', l2, mut, ptr_t));
+                  (* pass mutable things by reference *)
+                  if State.is_mutable st arg_v then
+                    let loc' = State.unique st in
+                    Hashtbl.add_exn (List.hd_exn st.store) arg_n (ptr_t, c, loc');
+                    Hashtbl.add_exn st.mem loc' (V_ptr(loc', l2, mut, ptr_t));
+                    (* pass immutable things by value *)
                   else
-                    let v = State.deref st' v in
-                    State.add_var st' n c v
+                    let arg_v = State.deref st arg_v in
+                    State.add_var st arg_n c arg_v
                 end
-              |_ -> State.add_var st' n c v
-            ) nvs;
+              |_ -> State.add_var st arg_n c arg_v
+            ) arg_value_list;
           (* eval body *)
-          let v, (r, w), k', p = eval st' expr |> autoclone st' in
+          let v, (r, w), k', p = eval st expr |> autoclone st in
           if not (State.eq_types st (get_type v) ret) then 
             raise (GError "invalid return type")
           else 
@@ -88,7 +89,7 @@ let rec eval (st:State.t) (exp:expr): result =
     end
   |Object o -> begin
       (* helper function for processing a field and setting up the correct pointers *)
-      let eval_field (state, locs, k's, p_) (var, e, u, m) =
+      let eval_field (var, e, u, m) (state, locs, k's, p_) =
         let v, (r, w), k', p = eval state e |> autoclone state in
         let t = get_type v in
         let loc = State.unique state in
@@ -98,8 +99,7 @@ let rec eval (st:State.t) (exp:expr): result =
         Hashtbl.add_exn state.mem loc (V_ptr(loc, loc', m, t));
         state', (var, (t, u, m, loc))::locs, k'::k's, p
       in
-      let st, locs_rev, k's, p = List.fold_left ~f:eval_field ~init:(st,[],[],CapSet.empty) o in
-      let field_info = List.rev locs_rev in
+      let st, field_info, k's, p = List.fold_right ~f:eval_field ~init:(st,[],[],CapSet.empty) o in
       let c = "c."^(string_of_int (State.unique st)) in
       let k' = List.fold_left 
           ~f:(fun a x -> CapSet.union a x) 
@@ -111,23 +111,30 @@ let rec eval (st:State.t) (exp:expr): result =
     end
   |Get(e,fname) -> begin
       let v, (r, w), k', p = eval st e |> autoclone st in
+      print_endline r;
+      print_endline w;
+      stringify_capset k' |> print_endline;
+      stringify_capset p |> print_endline;
       match State.deref st v with
       |V_obj fields -> begin
           let (t,u,mut,loc) = List.Assoc.find_exn fields ~equal:(=) fname in
-          (* for now, write cap for the obj is always consumed *)
-          (* TODO check this behavior *)
-          let p = CapSet.diff p (CapSet.singleton w) in
           (* if immutable, no write is allowed *)
           let w = match mut with 
             |MUT -> w 
             |IMMUT -> c_none
           in
           let r = match u with
-            |U -> r ^ "." ^ fname
+            |U -> r ^ "." ^ fname (* TODO figure this out *)
             |A -> r
           in
-          (* I don't think I can autoclone here *)
-          State.get_mem st loc, (r,w), k', p
+          let fval = State.get_mem st loc in
+          (* TODO check this behavior *)
+          let p = 
+            if State.is_mutable st fval then 
+              CapSet.diff p (CapSet.singleton w)
+            else p 
+          in
+          fval, (r,w), k', p
         end
       |_ -> raise (GError "expected object")
     end
@@ -162,17 +169,11 @@ let rec eval (st:State.t) (exp:expr): result =
       (* autoclone to prevent own caps from being consumed *)
       let v, (r, w), k', p = eval st e1 |> autoclone st in
       let c = "c."^(string_of_int (State.unique st)) in
-      let t = get_type v in
       let st = State.enter_scope st in
       match State.find_var_opt st x with
       | Some _ -> raise (GError "no shadowing allowed")
       | None -> begin
-          let loc1 = State.unique st in
-          let loc2 = State.unique st in
-          let store = List.hd_exn st.store in
-          Hashtbl.add_exn store x (t,c,loc1);
-          Hashtbl.add_exn st.mem loc1 (V_ptr(loc1, loc2, MUT, get_type v));
-          Hashtbl.add_exn st.mem loc2 v;
+          State.add_var st x c v;
           (* TODO semantics differ from doc - transferring k' or k? *)
           let st' = {st with k = CapSet.add p c} in
           eval st' e2
@@ -240,16 +241,24 @@ let rec eval (st:State.t) (exp:expr): result =
       | V_bool i -> V_bool(not i), (r, w), CapSet.empty, p
       | _ -> raise (GError "expected bool for boolean negation")
     end
+  |This -> begin
+    (* nothing is consumed, TODO immutable pointer; can we apply framing here? *)
+    match st.focus with
+    |Some (c, t, loc) -> V_ptr(-1, loc, IMMUT, t), (c, c_none), CapSet.empty, st.k
+    |None -> raise (GError "not in focus")
+  end
   |Class(c,t) -> 
-    (* print_endline ("\n" ^ c); 
-    print_endline (stringify_hashtbl_stack st.store); 
-    print_endline (stringify_hashtbl_stack st.classes); *)
     match t with
-    |T_obj _ -> begin
+    |T_obj fields -> begin
         if State.cls_exists st c then raise (GError "class name already defined")
         else
+          let args = List.fold_right ~f:(fun (v, t, _) acc -> (v, t, A)::acc) ~init:[] fields in
+          (* TODO right now, all fields are made with A not U when using constructor *)
+          let oexpr_fields = List.fold_right ~f:(fun (v, _, mut) acc -> (v, Var(v), A, mut)::acc) ~init:[] fields in
+          let constructor = V_fun(None, [], args, T_cls(c), Object(oexpr_fields), []) in
+          State.add_var st c c_any constructor;
           Hashtbl.add_exn (List.hd_exn st.classes) c t;
-        V_unit, (c_any, c_none), CapSet.empty, st.k
+          V_unit, (c_any, c_none), CapSet.empty, st.k
       end
     |_ -> raise (GError "expected object type")
 

@@ -54,21 +54,21 @@ module State = struct
   type t = {
     k: CapSet.t;
     store: t_store list;
-    focus: (cap * value) option; 
+    focus: (cap * gtype * loc) option; 
     classes: classes list; (* unsure about this one *)
     mem: memory;
     counter: int ref;
   }
 
   let init = fun () -> 
-  {
-    k = CapSet.singleton c_any;
-    store = [Hashtbl.create (module String)];
-    focus = None;
-    classes = [Hashtbl.create (module String)];
-    mem = Hashtbl.create (module Int);
-    counter = ref 0;
-  }
+    {
+      k = CapSet.singleton c_any;
+      store = [Hashtbl.create (module String)];
+      focus = None;
+      classes = [Hashtbl.create (module String)];
+      mem = Hashtbl.create (module Int);
+      counter = ref 0;
+    }
 
   (* unique number generator *)
   let unique s = 
@@ -196,13 +196,13 @@ module State = struct
     |T_cls(cname1), T_cls(cname2) -> cname1 = cname2
     |_ -> false
 
-  let add_var st n c v = 
-    let t = get_type v in
+  let add_var st name c value = 
+    let t = get_type value in
     let loc1 = unique st in
     let loc2 = unique st in
-    Hashtbl.add_exn (List.hd_exn st.store) n (t, c, loc1);
+    Hashtbl.add_exn (List.hd_exn st.store) name (t, c, loc1);
     Hashtbl.add_exn st.mem loc1 (V_ptr(loc1, loc2, MUT, t));
-    Hashtbl.add_exn st.mem loc2 v
+    Hashtbl.add_exn st.mem loc2 value
 end
 
 let reconcile_read c1 c2 k1 k2 = 
@@ -253,3 +253,6 @@ let stringify_hashtbl_stack s =
     |[] -> acc
   in
   "[" ^ (String.concat ~sep:"," (helper s [])) ^ "]"
+
+let stringify_capset s = 
+  "[" ^ (String.concat ~sep:"," (CapSet.to_list s)) ^ "]"

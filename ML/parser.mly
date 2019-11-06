@@ -27,7 +27,7 @@ let sort_obj_field t_obj =
   SKIP ASSIGN SEMI IF THEN ELSE WHILE DO
   LBRACE RBRACE
   PRINT COMMA COLON DOT ARROW LAMBDA T_INT T_BOOL T_UNIT
-  BRANCH FOCUS U MUT SLEEP UNIT LET IN DESTROY CLASS
+  BRANCH FOCUS U MUT SLEEP UNIT LET IN DESTROY CLASS THIS
 %token EOF
 
 %nonassoc IN
@@ -124,6 +124,7 @@ expr :
   | LAMBDA LPAREN varlist OR paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun(None, $3, $5, $8, $10) }
   | LAMBDA VAR LPAREN varlist OR paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun(Some(snd $2), $4, $6, $9, $11) }
   | VAR LPAREN exprlist RPAREN {  Apply(snd $1, $3) }
+  | CVAR LPAREN exprlist RPAREN {  Apply(snd $1, $3) }
   | DESTROY LPAREN expr RPAREN {  Destroy($3) }
   | SLEEP LPAREN expr RPAREN {  Sleep($3) }
   | TRUE                 { Bool(true) }
@@ -141,6 +142,7 @@ expr :
   | LET VAR ASSIGN expr IN expr { Let(snd $2, $4, $6) }
   | expr ASSIGN expr { Assign($1, $3) }
   | CLASS CVAR LBRACE fieldlist RBRACE { Class(snd $2, T_obj(sort_field $4)) }
+  | THIS { This }
   
 /* Programs */
 p : expr EOF                 { $1 }

@@ -32,6 +32,7 @@ let rec fmt_ast n c =
   |Neg e -> sp "-%s" (fmt_ast 0 e)
   |Not e -> sp "!%s" (fmt_ast 0 e)
   |Class(c,t) -> sp "%sclass %s {%s}" (space n) c (fmt_type t)
+  |This -> sp "this"
 and print_binop = function
   | BinopAnd -> "&"
   | BinopOr -> "|"

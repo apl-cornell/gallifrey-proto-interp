@@ -1,1 +1,1 @@
-class C {mut a : int}
+class C {mut a : int}; let x = {mut a : 2} in let f = fun (x | a : C)->C { a } in f(x)

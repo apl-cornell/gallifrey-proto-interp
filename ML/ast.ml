@@ -54,6 +54,7 @@ type expr =
   |Neg of expr
   |Not of expr
   |Class of var * gtype
+  |This
 
 
 
