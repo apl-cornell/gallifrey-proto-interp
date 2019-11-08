@@ -212,8 +212,9 @@ let rec eval (st:State.t) (exp:expr): result =
       ignore(Thread.create (fun expr -> eval c_st expr) e);
       V_unit, (c_none, c_none), CapSet.empty, p_k
     end
-  |Focus(e1, e2) -> begin
+  |Focus(var, e2) -> begin
       (* do we NEED to focus a named class? *)
+      let e1 = Var(var) in
       let v, (r, w), k', p = eval st e1 |> autoclone st in
       let st = State.enter_scope st in
       match v, State.deref st v with

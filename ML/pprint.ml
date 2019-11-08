@@ -27,7 +27,7 @@ let rec fmt_ast n c =
   |Destroy e -> sp "destroy(%s)" (fmt_ast 0 e)
   |Sleep e -> sp "sleep(%s)" (fmt_ast 0 e)
   |Branch(v,e) -> sp "%sbranch" (space n)
-  |Focus(e1, e2) -> sp "%sfocus %s {\n%s\n}" (space n) (fmt_ast 0 e1) (fmt_ast (n+2) e2)
+  |Focus(v, e2) -> sp "%sfocus %s {\n%s\n}" (space n) (v) (fmt_ast (n+2) e2)
   |Assign(e1, e2) -> sp "%s%s := %s" (space n) (fmt_ast 0 e1) (fmt_ast 0 e2)
   |Neg e -> sp "-%s" (fmt_ast 0 e)
   |Not e -> sp "!%s" (fmt_ast 0 e)

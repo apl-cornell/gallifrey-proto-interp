@@ -139,7 +139,7 @@ expr :
   | expr SEMI expr             { Seq($1, $3) }
   | IF expr LBRACE expr RBRACE ELSE LBRACE expr RBRACE  { If($2, $4, $8) }
   | WHILE expr LBRACE expr RBRACE     { While($2, $4) }
-  | FOCUS expr LBRACE expr RBRACE     { Focus($2, $4) }
+  | FOCUS VAR LBRACE expr RBRACE     { Focus(snd $2, $4) }
   | BRANCH varlist LBRACE expr RBRACE     { Branch($2, $4) }
   | LET VAR ASSIGN expr IN expr { Let(snd $2, $4, $6) }
   | expr ASSIGN expr { Assign($1, $3) }

@@ -49,7 +49,7 @@ type expr =
   |Destroy of expr
   |Sleep of expr
   |Branch of var list * expr
-  |Focus of expr * expr
+  |Focus of var * expr
   |Assign of expr * expr
   |Neg of expr
   |Not of expr
