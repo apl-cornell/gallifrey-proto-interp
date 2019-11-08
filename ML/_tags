@@ -1,0 +1,3 @@
+true: package(core), package(bisect_ppx-ocamlbuild), package(bisect_ppx)
+ <./*>: coverage
+ <./main.native>: coverage

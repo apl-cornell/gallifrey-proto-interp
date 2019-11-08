@@ -27,7 +27,7 @@ let sort_obj_field t_obj =
   SKIP ASSIGN SEMI IF THEN ELSE WHILE DO
   LBRACE RBRACE
   PRINT COMMA COLON DOT ARROW LAMBDA T_INT T_BOOL T_UNIT
-  BRANCH FOCUS U MUT SLEEP UNIT LET IN DESTROY CLASS THIS
+  BRANCH FOCUS U MUT SLEEP UNIT LET IN DESTROY CLASS EXTENDS
 %token EOF
 
 %nonassoc IN
@@ -49,8 +49,8 @@ let sort_obj_field t_obj =
 %type <Ast.expr> p
 %type <(Ast.var * Ast.gtype * Ast.unique) list> paramlist
 %type <Ast.expr list> exprlist
-%type <string * Ast.expr * Ast.unique * Ast.mut> field_bind
-%type <(string * Ast.expr * Ast.unique * Ast.mut) list> fieldbindlist
+/* %type <string * Ast.expr * Ast.unique * Ast.mut> field_bind
+%type <(string * Ast.expr * Ast.unique * Ast.mut) list> fieldbindlist */
 %type <Ast.gtype> type
 %type <Ast.gtype list > typelist
 %type <string list> varlist
@@ -93,7 +93,7 @@ exprlist :
 | expr {[$1]}
 | expr COMMA exprlist {$1::$3}
 
-field_bind:
+/* field_bind:
   | VAR COLON expr { (snd $1, $3, A, IMMUT) }
   | U VAR COLON expr { (snd $2, $4, U, IMMUT) }
   | MUT VAR COLON expr { (snd $2, $4, A, MUT) }
@@ -101,7 +101,7 @@ field_bind:
 
 fieldbindlist : 
 | field_bind {[$1]}
-| field_bind COMMA fieldbindlist {$1::$3}
+| field_bind COMMA fieldbindlist {$1::$3} */
 
 expr : 
   | MINUS expr { Neg($2) }
@@ -132,7 +132,6 @@ expr :
   | INT                  { Int(snd $1) }
   | VAR                  { Var(snd $1) }
   | LPAREN expr RPAREN   { $2 }
-  | LBRACE fieldbindlist RBRACE { Object(sort_obj_field $2) }
   | expr DOT VAR { Get($1, snd $3) }
   | expr SEMI expr             { Seq($1, $3) }
   | IF expr LBRACE expr RBRACE ELSE LBRACE expr RBRACE  { If($2, $4, $8) }
@@ -142,7 +141,6 @@ expr :
   | LET VAR ASSIGN expr IN expr { Let(snd $2, $4, $6) }
   | expr ASSIGN expr { Assign($1, $3) }
   | CLASS CVAR LBRACE fieldlist RBRACE { Class(snd $2, T_obj(sort_field $4)) }
-  | THIS { This }
   
 /* Programs */
 p : expr EOF                 { $1 }
