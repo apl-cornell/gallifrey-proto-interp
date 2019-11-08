@@ -1,1 +1,1 @@
-class C {mut a : int}; let x = {mut a : 2} in let f = fun (x | a : C)->C { a } in f(x)
+class C {mut a : int}; let x = C(3) in while (x.a > 0) {x.a = x.a - 1}; x.a

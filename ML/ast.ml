@@ -10,7 +10,7 @@ type gtype =
   | T_int 
   | T_bool 
   | T_fun of (gtype list) * gtype
-  | T_obj of (var * gtype * mut) list
+  | T_obj of (var * gtype * unique * mut) list
   | T_cls of string
 and cap = string
 and var = string
@@ -40,7 +40,7 @@ type expr =
   |Binary of binop * expr * expr
   |Fun of string option * string list * (var * gtype * unique) list * gtype * expr
   |Apply of var * expr list
-  |Object of (var * expr * unique * mut) list
+  |Object of var * ((var * expr * unique * mut) list)
   |Get of expr * string
   |Seq of expr * expr
   |If of expr * expr * expr
@@ -53,8 +53,7 @@ type expr =
   |Assign of expr * expr
   |Neg of expr
   |Not of expr
-  |Class of var * gtype
-  |This
+  |Class of var * gtype * (var option)
 
 
 

@@ -18,7 +18,7 @@ let rec fmt_ast n c =
   |Binary(b, e1, e2) -> sp "%s %s %s" (fmt_ast 0 e1) (print_binop b) (fmt_ast 0 e2)
   |Fun(cl,caps,p,r,e) -> sp "function"
   |Apply(a,b) -> "apply"   
-  |Object o -> "object"
+  |Object(c,o) -> "object"
   |Get(e,f) -> sp "%s.%s" (fmt_ast 0 e) f
   |Seq(e1, e2) -> sp "%s;\n%s" (fmt_ast n e1) (fmt_ast n e2)
   |If(c, e1, e2) -> sp "%sif (%s) {\n%s\n} else {\n%s\n}" (space n) (fmt_ast 0 c) (fmt_ast (n+2) e1) (fmt_ast (n+2) e2)
@@ -31,8 +31,7 @@ let rec fmt_ast n c =
   |Assign(e1, e2) -> sp "%s%s := %s" (space n) (fmt_ast 0 e1) (fmt_ast 0 e2)
   |Neg e -> sp "-%s" (fmt_ast 0 e)
   |Not e -> sp "!%s" (fmt_ast 0 e)
-  |Class(c,t) -> sp "%sclass %s {%s}" (space n) c (fmt_type t)
-  |This -> sp "this"
+  |Class(c,t,super) -> sp "%sclass %s%s {%s}" (space n) c (match super with Some s -> " extends "^s | None -> "")(fmt_type t)
 and print_binop = function
   | BinopAnd -> "&"
   | BinopOr -> "|"
@@ -52,7 +51,7 @@ and fmt_value v =
   |V_int i -> (string_of_int i)
   |V_bool b -> (string_of_bool b)
   |V_unit -> "()"
-  |V_obj o -> "object<>"
+  |V_obj(c,o) -> "object<>"
   |V_fun(cls, caps, p, ret, e, closure) -> "closure<>"
   |V_ptr(l,l',m,t) -> sp "pointer<%s>" (fmt_type t)
 and fmt_type t = 
@@ -63,3 +62,9 @@ and fmt_type t =
   | T_fun(params, return) -> sp "%s -> %s" (fmt_list params fmt_type) (fmt_type return)
   | T_obj fields -> "<object>"
   | T_cls name -> name
+
+let print_node node = fmt_ast 0 node
+
+let print_val v = fmt_value v |> print_endline
+
+let print_type t = fmt_type t |> print_endline

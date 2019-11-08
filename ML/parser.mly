@@ -8,12 +8,12 @@ exception DuplicateField
 let merge (fn,pos1,_) (_,_,pos2) = (fn,pos1,pos2)
 
 let sort_field t_obj = 
-  let sorted = List.sort_uniq (fun (x,_,_) (y,_,_) -> String.compare x y) t_obj in
+  let sorted = List.sort_uniq (fun (x,_,_,_) (y,_,_,_) -> String.compare x y) t_obj in
   if List.length sorted <> List.length t_obj then raise DuplicateField
   else sorted
 
 let sort_obj_field t_obj = 
-  let sorted = List.sort_uniq (fun (x,_,_,_) (y,_,_,_) -> String.compare x y) t_obj in
+  let sorted = List.sort_uniq (fun (x,_,_,_,_) (y,_,_,_,_) -> String.compare x y) t_obj in
   if List.length sorted <> List.length t_obj then raise DuplicateField
   else sorted
 %}
@@ -65,7 +65,7 @@ type :
 | T_INT {T_int}
 | T_BOOL {T_bool}
 | LT typelist ARROW type GT {T_fun($2, $4)}
-| LT fieldlist GT {T_obj(sort_field $2)}
+/* | LT fieldlist GT {T_obj(sort_field $2)} */
 | T_UNIT {T_unit}
 | CVAR {T_cls(snd $1)}
 
@@ -84,10 +84,14 @@ paramlist :
 | U VAR COLON type COMMA paramlist {(snd $2, $4, U)::$6}
 
 fieldlist :
-| VAR COLON type {[(snd $1, $3, IMMUT)]}
-| MUT VAR COLON type {[(snd $2, $4, MUT)]}
-| VAR COLON type COMMA fieldlist {(snd $1, $3, IMMUT)::$5}
-| MUT VAR COLON type COMMA fieldlist {(snd $2, $4, MUT)::$6}
+| VAR COLON type {[(snd $1, $3, A, IMMUT)]}
+| MUT VAR COLON type {[(snd $2, $4, A, MUT)]}
+| VAR COLON type COMMA fieldlist {(snd $1, $3, A, IMMUT)::$5}
+| MUT VAR COLON type COMMA fieldlist {(snd $2, $4, A, MUT)::$6}
+| U VAR COLON type {[(snd $2, $4, U, IMMUT)]}
+| MUT U VAR COLON type {[(snd $3, $5, U, MUT)]}
+| U VAR COLON type COMMA fieldlist {(snd $2, $4, U, IMMUT)::$6}
+| MUT U VAR COLON type COMMA fieldlist {(snd $3, $5, U, MUT)::$7}
 
 exprlist :
 | expr {[$1]}
@@ -140,7 +144,8 @@ expr :
   | BRANCH varlist LBRACE expr RBRACE     { Branch($2, $4) }
   | LET VAR ASSIGN expr IN expr { Let(snd $2, $4, $6) }
   | expr ASSIGN expr { Assign($1, $3) }
-  | CLASS CVAR LBRACE fieldlist RBRACE { Class(snd $2, T_obj(sort_field $4)) }
+  | CLASS CVAR LBRACE fieldlist RBRACE { Class(snd $2, T_obj(sort_field $4), None) }
+  | CLASS CVAR EXTENDS CVAR LBRACE fieldlist RBRACE { Class(snd $2, T_obj(sort_field $6), Some (snd $2)) }
   
 /* Programs */
 p : expr EOF                 { $1 }

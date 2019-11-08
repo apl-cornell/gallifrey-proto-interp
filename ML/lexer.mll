@@ -84,7 +84,7 @@ rule token = parse
 | "U"    { U(info lexbuf) }
 | "mut"    { MUT(info lexbuf) }
 | "class"    { CLASS(info lexbuf) }
-| "this"    { THIS(info lexbuf) }
+| "extends"    { EXTENDS(info lexbuf) }
 | id as v { VAR(info lexbuf, v) }
 | cid as v { CVAR(info lexbuf, v) }
 | digit+ as n { INT(info lexbuf, int_of_string n) }

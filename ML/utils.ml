@@ -17,7 +17,7 @@ type value =
   |V_int of int
   |V_bool of bool
   |V_unit
-  |V_obj of (var * fieldinfo) list
+  |V_obj of var * ((var * fieldinfo) list)
   (* string option is class cap, boolean is uniqueness *)
   |V_fun of string option * string list * (var * gtype * unique) list * gtype * expr * t_store list
   (* own location + value's location *)
@@ -35,13 +35,14 @@ let get_type = function
   | V_int _ -> T_int
   | V_bool _ -> T_bool
   | V_unit -> T_unit
-  | V_obj fields -> begin
-      let t_fields = List.map fields 
+  | V_obj(cls, fields) -> begin
+      (* let t_fields = List.map fields 
           (fun f -> 
              let fname = fst f in
-             let t, _, mut, _ = snd f in
-             (fname, t, mut)
-          ) in T_obj(t_fields)
+             let t, u, mut, _ = snd f in
+             (fname, t, u, mut)
+          ) in T_obj(t_fields) *)
+      T_cls(cls)
     end
   | V_ptr(l, l', m, t) -> t
   | V_fun(cls, caps, params, return, _, _) -> begin
@@ -157,7 +158,7 @@ module State = struct
   (* this might have infinite loop *)
   let rec is_mutable st v = 
     match v with
-    |V_obj fields -> 
+    |V_obj(cls, fields) -> 
       List.fold_left 
         ~f:(fun a (v,(_,_,m,loc)) -> 
             if m = MUT then true
@@ -256,3 +257,4 @@ let stringify_hashtbl_stack s =
 
 let stringify_capset s = 
   "[" ^ (String.concat ~sep:"," (CapSet.to_list s)) ^ "]"
+

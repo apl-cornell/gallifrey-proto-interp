@@ -94,16 +94,27 @@ let rec eval (st:State.t) (exp:expr): result =
         end
       |_ -> raise (GError "expected a function")
     end
-  |Object o -> begin
+  |Object(cls, o) -> begin
       (* helper function for processing a field and setting up the correct pointers *)
       let eval_field (var, e, u, m) (state, locs, k's, p_) =
         let v, (r, w), k', p = eval state e |> autoclone state in
         let t = get_type v in
         let loc = State.unique state in
         let loc' = State.unique state in
+        (match v with
+         |V_ptr(l,l',m,t) -> begin
+             let value = State.get_mem st l' in
+             if State.is_mutable st value then
+               Hashtbl.set st.mem loc (V_ptr(loc, l', m, t))
+             else 
+               Hashtbl.set st.mem loc (V_ptr(loc, loc', m, t));
+             Hashtbl.set st.mem loc' (State.get_mem st l')
+           end
+         |v -> begin
+             Hashtbl.set st.mem loc (V_ptr(loc, loc', m, t));
+             Hashtbl.set st.mem loc' v
+           end);
         let state' = {state with k = p} in
-        Hashtbl.add_exn state.mem loc' v;
-        Hashtbl.add_exn state.mem loc (V_ptr(loc, loc', m, t));
         state', (var, (t, u, m, loc))::locs, k'::k's, p
       in
       let st, field_info, k's, p = List.fold_right ~f:eval_field ~init:(st,[],[],CapSet.empty) o in
@@ -114,16 +125,12 @@ let rec eval (st:State.t) (exp:expr): result =
           ((CapSet.singleton c)::k's) 
       in
       (* k' is union of all k' + c, p is p of last field expr *)
-      V_obj(field_info), (c, c), k', p
+      V_obj(cls, field_info), (c, c), k', p
     end
   |Get(e,fname) -> begin
       let v, (r, w), k', p = eval st e |> autoclone st in
-      (* print_endline r;
-         print_endline w;
-         stringify_capset k' |> print_endline;
-         stringify_capset p |> print_endline; *)
       match State.deref st v with
-      |V_obj fields -> begin
+      |V_obj(cls, fields) -> begin
           let (t,u,mut,loc) = List.Assoc.find_exn fields ~equal:(=) fname in
           (* if immutable, no write is allowed *)
           let w = match mut with 
@@ -210,12 +217,12 @@ let rec eval (st:State.t) (exp:expr): result =
       let v, (r, w), k', p = eval st e1 |> autoclone st in
       let st = State.enter_scope st in
       match v, State.deref st v with
-      |(V_ptr(l1, l2, _, T_obj ft), V_obj fields) -> begin
+      |(V_ptr(l1, l2, _, T_cls cname), V_obj(cls, fields)) -> begin
           let unique_caps = List.filter ~f:(fun (v, (t,u,m,l)) -> u = U) fields |> 
                             List.map ~f:(fun (v, (t,u,m,l)) -> w ^ "." ^ v) |>
                             CapSet.of_list in
           let st' = {
-            st with focus = Some (w, T_obj ft, l2); 
+            st with focus = Some (w, T_cls cname, l2); 
                     (* add unique caps, remove object's cap *)
                     k = CapSet.remove (CapSet.union p unique_caps) w
           } in
@@ -272,21 +279,20 @@ let rec eval (st:State.t) (exp:expr): result =
       | V_bool i -> V_bool(not i), (r, w), CapSet.empty, p
       | _ -> raise (GError "expected bool for boolean negation")
     end
-  |This -> begin
+  (* |This -> begin
       (* nothing is consumed, TODO immutable pointer; can we apply framing here? *)
       match st.focus with
       |Some (c, t, loc) -> V_ptr(-1, loc, IMMUT, t), (c, c_none), CapSet.empty, st.k
       |None -> raise (GError "not in focus")
-    end
-  |Class(c,t) -> 
+     end *)
+  |Class(c,t,super) -> 
     match t with
     |T_obj fields -> begin
         if State.cls_exists st c then raise (GError "class name already defined")
         else
-          let args = List.fold_right ~f:(fun (v, t, _) acc -> (v, t, A)::acc) ~init:[] fields in
-          (* TODO right now, all fields are made with A not U when using constructor *)
-          let oexpr_fields = List.fold_right ~f:(fun (v, _, mut) acc -> (v, Var(v), A, mut)::acc) ~init:[] fields in
-          let constructor = V_fun(None, [], args, T_cls(c), Object(oexpr_fields), []) in
+          let args = List.fold_right ~f:(fun (v, t, u, _) acc -> (v, t, u)::acc) ~init:[] fields in
+          let oexpr_fields = List.fold_right ~f:(fun (v, _, u, mut) acc -> (v, Var(v), u, mut)::acc) ~init:[] fields in
+          let constructor = V_fun(None, [], args, T_cls(c), Object(c, oexpr_fields), []) in
           State.add_var st c c_any constructor;
           Hashtbl.add_exn (List.hd_exn st.classes) c t;
           V_unit, (c_any, c_none), CapSet.empty, st.k
