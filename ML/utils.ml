@@ -29,21 +29,13 @@ and storeinfo = (gtype * cap * loc)
 (* type, unique, mutable, location *)
 and fieldinfo = (gtype * unique * mut * loc)
 and memory = (loc, value) Hashtbl.t
-and classes = (var, gtype) Hashtbl.t
+and classes = (var, (t_obj * var option)) Hashtbl.t
 
 let get_type = function
   | V_int _ -> T_int
   | V_bool _ -> T_bool
   | V_unit -> T_unit
-  | V_obj(cls, fields) -> begin
-      (* let t_fields = List.map fields 
-          (fun f -> 
-             let fname = fst f in
-             let t, u, mut, _ = snd f in
-             (fname, t, u, mut)
-          ) in T_obj(t_fields) *)
-      T_cls(cls)
-    end
+  | V_obj(cls, fields) -> T_cls(cls)
   | V_ptr(l, l', m, t) -> t
   | V_fun(cls, caps, params, return, _, _) -> begin
       let param_types = List.map params 
@@ -110,20 +102,19 @@ module State = struct
       |[] -> None
       |h::t -> begin
           match Hashtbl.find h x with
-          |Some(T_obj(f)) as o -> o
+          |(Some ((o, super))) as obj -> obj
           |None -> find_helper t x
-          |_ -> raise (GError ("expected object type"))
         end
     in find_helper s.classes x
 
   let find_cls s x = 
     match find_cls_opt s x with
-    | Some v -> v
+    | Some (o, super) -> (o, super)
     | None -> raise (GError ("class " ^ x ^ " not found"))
 
   let cls_exists s x = 
     match find_cls_opt s x with
-    | Some v -> true
+    | Some (o, super) -> true
     | None -> false
 
   (* get value at memory location *)
@@ -184,17 +175,45 @@ module State = struct
   let destroy st cap = 
     destroy_store st.store cap
 
+  let rec getall_supercls st c = 
+    let path_to_parent = match find_cls st c with
+      |(_, Some s) -> c::(getall_supercls st s)
+      |_ -> [c]
+    in
+    match path_to_parent with
+    |h::t -> t
+    |_ -> []
+
   let rec eq_types st t1 t2 = 
     match t1, t2 with
     |T_unit, T_unit -> true
     |T_int, T_int -> true
     |T_bool, T_bool -> true
-    |T_fun(i,o), T_fun(i2, o2) when i = i2 && o = o2 -> true
-    |T_obj f1, T_obj f2 when f1 = f2 -> true
-    |T_obj _, T_cls(cname) -> eq_types st t1 (find_cls st cname)
-    |T_cls(cname), T_obj _ -> eq_types st t2 (find_cls st cname)
-    (* do we check the fields of the classes? *)
+    |T_fun(i,o), T_fun(i2, o2) -> begin
+        let eq_inputs = List.fold2_exn 
+            i i2 ~init:true 
+            ~f:(fun acc a b -> if not (eq_types st a b) then false else true && acc) in
+        eq_inputs && (eq_types st o o2)
+      end
     |T_cls(cname1), T_cls(cname2) -> cname1 = cname2
+    |_ -> false
+
+  (* is L a subtype of R *)
+  let rec is_subtype st l r = 
+    match l, r with
+    |_, T_unit -> true
+    |_, _ when eq_types st l r -> true
+    |T_fun(i,o), T_fun(i2, o2) -> begin
+        (* contravariant in input, covariant in output *)
+        let eq_inputs = List.fold2_exn 
+            i i2 ~init:true 
+            ~f:(fun acc a b -> if not (is_subtype st b a) then false else true && acc) in
+        eq_inputs && (is_subtype st o o2)
+      end
+    |T_cls(cname1), T_cls(cname2) -> 
+    (* purely for formatting/readability *)
+      if cname1 = cname2 then true 
+      else List.mem (getall_supercls st cname2) cname2 (=)
     |_ -> false
 
   let add_var st name c value = 
@@ -246,6 +265,10 @@ let autoclone (st:State.t) (v, (r,w), k', p) =
   let k', p = if State.is_mutable st v then k', p 
     else CapSet.empty, CapSet.union k' p in
   v,(r,w),k',p
+
+let unit_coerce (st:State.t) (v, (r,w), k', p) = 
+  if State.is_subtype st (get_type v) T_unit then V_unit, (r, w), k', p
+  else v, (r, w), k', p
 
 let stringify_hashtbl_stack s = 
   let rec helper s acc = 

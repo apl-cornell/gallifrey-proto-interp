@@ -65,7 +65,6 @@ type :
 | T_INT {T_int}
 | T_BOOL {T_bool}
 | LT typelist ARROW type GT {T_fun($2, $4)}
-/* | LT fieldlist GT {T_obj(sort_field $2)} */
 | T_UNIT {T_unit}
 | CVAR {T_cls(snd $1)}
 
@@ -144,8 +143,8 @@ expr :
   | BRANCH varlist LBRACE expr RBRACE     { Branch($2, $4) }
   | LET VAR ASSIGN expr IN expr { Let(snd $2, $4, $6) }
   | expr ASSIGN expr { Assign($1, $3) }
-  | CLASS CVAR LBRACE fieldlist RBRACE { Class(snd $2, T_obj(sort_field $4), None) }
-  | CLASS CVAR EXTENDS CVAR LBRACE fieldlist RBRACE { Class(snd $2, T_obj(sort_field $6), Some (snd $2)) }
+  | CLASS CVAR LBRACE fieldlist RBRACE { Class(snd $2, sort_field $4, None) }
+  | CLASS CVAR EXTENDS CVAR LBRACE fieldlist RBRACE { Class(snd $2, sort_field $6, Some (snd $2)) }
   
 /* Programs */
 p : expr EOF                 { $1 }

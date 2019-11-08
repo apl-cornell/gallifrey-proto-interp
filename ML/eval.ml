@@ -40,7 +40,7 @@ let rec eval (st:State.t) (exp:expr): result =
       let v = State.get_mem st loc |> State.deref st in
       match v with
       |V_fun(cls, caps, params, ret, expr, store) -> begin
-          (* check if "method" can be used *)
+          (* check if "method" can be used, TODO fix this behavior *)
           (match cls, st.focus with
            |Some c, Some (_, t, _) -> 
              if not (State.eq_types st (T_cls c) t) 
@@ -63,7 +63,7 @@ let rec eval (st:State.t) (exp:expr): result =
           (* check types for args *)
           let arg_value_list = List.map2_exn 
               ~f:(fun (n,t,u) (v,c) -> 
-                  if not (State.eq_types st (get_type v) t) then 
+                  if not (State.is_subtype st (get_type v) t) then 
                     raise (GError "argument does not match input type")
                   else (n,v,c)
                 ) params vs in
@@ -87,7 +87,7 @@ let rec eval (st:State.t) (exp:expr): result =
             ) arg_value_list;
           (* eval body *)
           let v, (r, w), k', p = eval st expr |> autoclone st in
-          if not (State.eq_types st (get_type v) ret) then 
+          if not (State.is_subtype st (get_type v) ret) then 
             raise (GError "invalid return type")
           else 
             v, (r, w), k', p
@@ -153,7 +153,7 @@ let rec eval (st:State.t) (exp:expr): result =
       |_ -> raise (GError "expected object")
     end
   |Seq(e1, e2) -> begin
-      let v1, (r1, w1), k', pl = eval st e1|> autoclone st in
+      let v1, (r1, w1), k', pl = eval st e1|> unit_coerce st |> autoclone st in
       let st' = {st with k = pl} in
       eval st' e2
     end
@@ -249,7 +249,7 @@ let rec eval (st:State.t) (exp:expr): result =
        (* aliasing *)
        |V_ptr(l1,l1',m1,t1), V_ptr(l2,l2',m2,t2) -> begin
            let v_right = State.get_mem st l2' in
-           if not (State.eq_types st t1 t2) then raise (GError "types do not match")
+           if not (State.is_subtype st t2 t1) then raise (GError "types do not match")
            else if m1 <> MUT then raise (GError "LHS is not mutable")
            else if CapSet.mem k' c then raise (GError "c in k'")
            (* if RHS is mutable *)
@@ -260,7 +260,7 @@ let rec eval (st:State.t) (exp:expr): result =
          end
        (* assigning a value *)
        |V_ptr(l,l',m,t), v -> begin
-           if not (State.eq_types st t (get_type v)) then raise (GError "types do not match")
+           if not (State.is_subtype st (get_type v) t) then raise (GError "types do not match")
            else if CapSet.mem k' c then raise (GError "c in k'")
            else Hashtbl.set st.mem l' v
          end
@@ -285,19 +285,25 @@ let rec eval (st:State.t) (exp:expr): result =
       |Some (c, t, loc) -> V_ptr(-1, loc, IMMUT, t), (c, c_none), CapSet.empty, st.k
       |None -> raise (GError "not in focus")
      end *)
-  |Class(c,t,super) -> 
-    match t with
-    |T_obj fields -> begin
-        if State.cls_exists st c then raise (GError "class name already defined")
-        else
-          let args = List.fold_right ~f:(fun (v, t, u, _) acc -> (v, t, u)::acc) ~init:[] fields in
-          let oexpr_fields = List.fold_right ~f:(fun (v, _, u, mut) acc -> (v, Var(v), u, mut)::acc) ~init:[] fields in
-          let constructor = V_fun(None, [], args, T_cls(c), Object(c, oexpr_fields), []) in
-          State.add_var st c c_any constructor;
-          Hashtbl.add_exn (List.hd_exn st.classes) c t;
-          V_unit, (c_any, c_none), CapSet.empty, st.k
-      end
-    |_ -> raise (GError "expected object type")
+  |Class(c,fields,super) -> 
+    let sort_field t_obj = 
+      let sorted = List.dedup_and_sort (fun (x,_,_,_) (y,_,_,_) -> String.compare x y) t_obj in
+      if List.length sorted <> List.length t_obj then raise (GError "fields must have unique names")
+      else sorted
+    in
+    if State.cls_exists st c then raise (GError "class name already defined")
+    else
+      let super_fields = match super with
+      |Some sc -> State.find_cls st sc |> fst
+      |None -> []
+      in
+      let fields = fields @ super_fields |> sort_field in
+      let args = List.fold_right ~f:(fun (v, t, u, _) acc -> (v, t, u)::acc) ~init:[] fields in
+      let oexpr_fields = List.fold_right ~f:(fun (v, _, u, mut) acc -> (v, Var(v), u, mut)::acc) ~init:[] fields in
+      let constructor = V_fun(None, [], args, T_cls(c), Object(c, oexpr_fields), []) in
+      State.add_var st c c_any constructor;
+      Hashtbl.add_exn (List.hd_exn st.classes) c (fields, super);
+      V_unit, (c_any, c_none), CapSet.empty, st.k
 
 and eval_binop st bop e1 e2 = 
   (* throw away K' and K'', no caps check atm *)

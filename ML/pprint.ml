@@ -31,7 +31,7 @@ let rec fmt_ast n c =
   |Assign(e1, e2) -> sp "%s%s := %s" (space n) (fmt_ast 0 e1) (fmt_ast 0 e2)
   |Neg e -> sp "-%s" (fmt_ast 0 e)
   |Not e -> sp "!%s" (fmt_ast 0 e)
-  |Class(c,t,super) -> sp "%sclass %s%s {%s}" (space n) c (match super with Some s -> " extends "^s | None -> "")(fmt_type t)
+  |Class(c,t,super) -> sp "%sclass %s%s {%s}" (space n) c (match super with Some s -> " extends "^s | None -> "") "<object>"
 and print_binop = function
   | BinopAnd -> "&"
   | BinopOr -> "|"
@@ -60,7 +60,6 @@ and fmt_type t =
   | T_int -> "int"
   | T_bool -> "bool"
   | T_fun(params, return) -> sp "%s -> %s" (fmt_list params fmt_type) (fmt_type return)
-  | T_obj fields -> "<object>"
   | T_cls name -> name
 
 let print_node node = fmt_ast 0 node

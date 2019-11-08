@@ -10,8 +10,8 @@ type gtype =
   | T_int 
   | T_bool 
   | T_fun of (gtype list) * gtype
-  | T_obj of (var * gtype * unique * mut) list
   | T_cls of string
+and t_obj = (var * gtype * unique * mut) list
 and cap = string
 and var = string
 and mut = MUT | IMMUT
@@ -53,7 +53,7 @@ type expr =
   |Assign of expr * expr
   |Neg of expr
   |Not of expr
-  |Class of var * gtype * (var option)
+  |Class of var * t_obj * (var option)
 
 
 
