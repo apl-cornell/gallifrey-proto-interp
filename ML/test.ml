@@ -92,6 +92,9 @@ let eval_checkval = [
   ("class C {a : int}; let x = C(2) in let f = fun (x | z : int)->int { z = z + 1; z } in f(x.a); x.a", V_int(2));
   ("class C {mut a : int}", V_unit);
   ("class C {mut a : int}; let x = C(1) in x.a", V_int(1));
+  ("class C {mut a : int}; class C2 extends C {mut b : int};let x = C2(1,2) in x.b", V_int(2));
+  ("class C {mut a : int}; class C2 extends C {mut b : int};let x = C2(1,2) in x.a", V_int(1));
+  ("class C {mut a : int}; class C2 extends C {mut b : int};let x = C2(1,2) in let f = fun (x | a : C)->int { a.a } in f(x)", V_int(1));
 ]
 
 (* check that evaluation succeeded *)
@@ -105,7 +108,6 @@ let eval_success = [
 (* check that evaluation failed *)
 let eval_failure = [
   "let x = 1 in (destroy(x);destroy(x))";
-  "class C {mut a : int}; let x = C(1) in let y = C(2) in (y.a = x.a; y.a)";
   "let x = 1 in (destroy(x);x)";
   "let x = 1 in branch x {x}; x";
   "class C {mut a : int, mut b : int}; let x = C(1,2) in destroy(x.a);x.b";

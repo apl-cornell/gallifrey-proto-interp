@@ -7,15 +7,15 @@ exception DuplicateField
 
 let merge (fn,pos1,_) (_,_,pos2) = (fn,pos1,pos2)
 
-let sort_field t_obj = 
+let dedup_field t_obj = 
   let sorted = List.sort_uniq (fun (x,_,_,_) (y,_,_,_) -> String.compare x y) t_obj in
   if List.length sorted <> List.length t_obj then raise DuplicateField
-  else sorted
+  else t_obj
 
-let sort_obj_field t_obj = 
+let dedup_obj_field t_obj = 
   let sorted = List.sort_uniq (fun (x,_,_,_,_) (y,_,_,_,_) -> String.compare x y) t_obj in
   if List.length sorted <> List.length t_obj then raise DuplicateField
-  else sorted
+  else t_obj
 %}
 
 %token <Ast.info * int> INT
@@ -143,8 +143,8 @@ expr :
   | BRANCH varlist LBRACE expr RBRACE     { Branch($2, $4) }
   | LET VAR ASSIGN expr IN expr { Let(snd $2, $4, $6) }
   | expr ASSIGN expr { Assign($1, $3) }
-  | CLASS CVAR LBRACE fieldlist RBRACE { Class(snd $2, sort_field $4, None) }
-  | CLASS CVAR EXTENDS CVAR LBRACE fieldlist RBRACE { Class(snd $2, sort_field $6, Some (snd $2)) }
+  | CLASS CVAR LBRACE fieldlist RBRACE { Class(snd $2, dedup_field $4, None) }
+  | CLASS CVAR EXTENDS CVAR LBRACE fieldlist RBRACE { Class(snd $2, dedup_field $6, Some (snd $4)) }
   
 /* Programs */
 p : expr EOF                 { $1 }

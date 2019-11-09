@@ -287,10 +287,10 @@ let rec eval (st:State.t) (exp:expr): result =
       |None -> raise (GError "not in focus")
      end *)
   |Class(c,fields,super) -> 
-    let sort_field t_obj = 
+    let check_dedup t_obj = 
       let sorted = List.dedup_and_sort (fun (x,_,_,_) (y,_,_,_) -> String.compare x y) t_obj in
       if List.length sorted <> List.length t_obj then raise (GError "fields must have unique names")
-      else sorted
+      else ()
     in
     if State.cls_exists st c then raise (GError "class name already defined")
     else
@@ -298,7 +298,8 @@ let rec eval (st:State.t) (exp:expr): result =
       |Some sc -> State.find_cls st sc |> fst
       |None -> []
       in
-      let fields = fields @ super_fields |> sort_field in
+      let fields = super_fields @ fields in
+      check_dedup fields;
       let args = List.fold_right ~f:(fun (v, t, u, _) acc -> (v, t, u)::acc) ~init:[] fields in
       let oexpr_fields = List.fold_right ~f:(fun (v, _, u, mut) acc -> (v, Var(v), u, mut)::acc) ~init:[] fields in
       let constructor = V_fun(None, [], args, T_cls(c), Object(c, oexpr_fields), []) in

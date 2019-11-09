@@ -13,6 +13,20 @@ module CapSet = Set.Make(String)
 let c_any = "ANY"
 let c_none = "NONE"
 
+let stringify_hashtbl_stack s = 
+  let rec helper s acc = 
+    match s with 
+    |h::t -> helper t (acc @ Hashtbl.keys h)
+    |[] -> acc
+  in
+  "[" ^ (String.concat ~sep:"," (helper s [])) ^ "]"
+
+let stringify_capset s = 
+  "[" ^ (String.concat ~sep:"," (CapSet.to_list s)) ^ "]"
+
+let stringify_list l = 
+  "[" ^ String.concat ~sep:"," l ^ "]"
+
 type value = 
   |V_int of int
   |V_bool of bool
@@ -175,12 +189,12 @@ module State = struct
   let destroy st cap = 
     destroy_store st.store cap
 
-  let rec getall_supercls st c = 
-    let path_to_parent = match find_cls st c with
-      |(_, Some s) -> c::(getall_supercls st s)
+  let getall_supercls st c = 
+    let rec path_to_parent c = match find_cls st c with
+      |(_, Some s) -> c::(path_to_parent s)
       |_ -> [c]
     in
-    match path_to_parent with
+    match path_to_parent c with
     |h::t -> t
     |_ -> []
 
@@ -213,7 +227,7 @@ module State = struct
     |T_cls(cname1), T_cls(cname2) -> 
     (* purely for formatting/readability *)
       if cname1 = cname2 then true 
-      else List.mem (getall_supercls st cname2) cname2 (=)
+      else List.mem (getall_supercls st cname1) cname2 (=)
     |_ -> false
 
   let add_var st name c value = 
@@ -269,15 +283,4 @@ let autoclone (st:State.t) (v, (r,w), k', p) =
 let unit_coerce (st:State.t) (v, (r,w), k', p) = 
   if State.is_subtype st (get_type v) T_unit then V_unit, (r, w), k', p
   else v, (r, w), k', p
-
-let stringify_hashtbl_stack s = 
-  let rec helper s acc = 
-    match s with 
-    |h::t -> helper t (acc @ Hashtbl.keys h)
-    |[] -> acc
-  in
-  "[" ^ (String.concat ~sep:"," (helper s [])) ^ "]"
-
-let stringify_capset s = 
-  "[" ^ (String.concat ~sep:"," (CapSet.to_list s)) ^ "]"
 
