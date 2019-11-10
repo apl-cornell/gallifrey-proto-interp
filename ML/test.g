@@ -1,1 +1,1 @@
-class C {mut a : int}; class C2 extends C {mut b : int};let x = C2(1,2) in let f = fun (x | a : C)->int { a.a } in f(x)
+class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->C { let y = a in y } in (f(x)).a

@@ -107,8 +107,8 @@ let rec eval (st:State.t) (exp:expr): result =
              if State.is_mutable st value then
                Hashtbl.set st.mem loc (V_ptr(loc, l', m, t))
              else 
-               Hashtbl.set st.mem loc (V_ptr(loc, loc', m, t));
-             Hashtbl.set st.mem loc' (State.get_mem st l')
+               (Hashtbl.set st.mem loc (V_ptr(loc, loc', m, t));
+                Hashtbl.set st.mem loc' (State.get_mem st l'))
            end
          |v -> begin
              Hashtbl.set st.mem loc (V_ptr(loc, loc', m, t));
@@ -125,7 +125,12 @@ let rec eval (st:State.t) (exp:expr): result =
           ((CapSet.singleton c)::k's) 
       in
       (* k' is union of all k' + c, p is p of last field expr *)
-      V_obj(cls, field_info), (c, c), k', p
+      (* return pointer to the object instead of actual object, TODO check behavior *)
+      let loc = State.unique st in
+      let obj = V_obj(cls, field_info) in
+      let ptr = (V_ptr(-1, loc, (if State.is_mutable st obj then MUT else IMMUT), get_type obj)) in
+      Hashtbl.set st.mem loc obj;
+      ptr, (c, c), k', p
     end
   |Get(e,fname) -> begin
       let v, (r, w), k', p = eval st e |> autoclone st in
@@ -150,7 +155,7 @@ let rec eval (st:State.t) (exp:expr): result =
           in
           fval, (r,w), k', p
         end
-      |_ -> raise (GError "expected object")
+      |_ as o -> print_val o ; raise (GError "expected object")
     end
   |Seq(e1, e2) -> begin
       let v1, (r1, w1), k', pl = eval st e1|> unit_coerce st |> autoclone st in
@@ -187,8 +192,24 @@ let rec eval (st:State.t) (exp:expr): result =
       match State.find_var_opt st x with
       | Some _ -> raise (GError "no shadowing allowed")
       | None -> begin
-          State.add_var st x c v;
-          (* TODO semantics differ from doc - transferring k' or k? *)
+          let loc = State.unique st in
+          let loc' = State.unique st in
+          (match v with
+           |V_ptr(l,l',m,t) -> begin
+               let value = State.get_mem st l' in
+               Hashtbl.set (List.hd_exn st.store) x (t, c, loc);
+               if State.is_mutable st value then
+                 Hashtbl.set st.mem loc (V_ptr(loc, l', m, t))
+               else 
+                 (Hashtbl.set st.mem loc (V_ptr(loc, loc', m, t));
+                  Hashtbl.set st.mem loc' (State.get_mem st l'))
+             end
+           |v -> begin
+               let t = get_type v in
+               Hashtbl.set (List.hd_exn st.store) x (t, c, loc);
+               Hashtbl.set st.mem loc (V_ptr(loc, loc', MUT, t));
+               Hashtbl.set st.mem loc' v
+             end);
           let st' = {st with k = CapSet.add p c} in
           eval st' e2
         end
@@ -295,8 +316,8 @@ let rec eval (st:State.t) (exp:expr): result =
     if State.cls_exists st c then raise (GError "class name already defined")
     else
       let super_fields = match super with
-      |Some sc -> State.find_cls st sc |> fst
-      |None -> []
+        |Some sc -> State.find_cls st sc |> fst
+        |None -> []
       in
       let fields = super_fields @ fields in
       check_dedup fields;

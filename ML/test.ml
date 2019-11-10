@@ -83,6 +83,7 @@ let eval_checkval = [
   ("class C {mut a : int}; let f = fun (| a : int)->C { C(a) } in (f(1)).a", V_int(1));
   ("class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->int { let y = a.a in y } in f(x)", V_int(2));
   ("class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->C { let y = a in y } in (f(x)).a", V_int(2));
+  ("class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->C { a } in (f(x)).a", V_int(2));  
   ("class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->C { let y = a in y } in let z = f(x) in z.a", V_int(2));
   ("class C {a : int}; let x = C(2) in let f = fun (x | z : int)->int { z = z + 1; z } in f(x.a)", V_int(3));
   ("class C {a : int}; let x = C(2) in let f = fun (x | z : int)->int { z = z + 1; z } in f(x.a); x.a", V_int(2));
@@ -95,6 +96,8 @@ let eval_checkval = [
   ("class C {mut a : int}; class C2 extends C {mut b : int};let x = C2(1,2) in x.b", V_int(2));
   ("class C {mut a : int}; class C2 extends C {mut b : int};let x = C2(1,2) in x.a", V_int(1));
   ("class C {mut a : int}; class C2 extends C {mut b : int};let x = C2(1,2) in let f = fun (x | a : C)->int { a.a } in f(x)", V_int(1));
+  ("class C {mut a : int}; class C2 {o : C};let x = C(1) in let y = C2(x) in y.o.a", V_int(1));
+  ("class C {mut a : int}; class C2 {o : C};let x = C(1) in let y = C2(x) in y.o.a = 0; y.o.a", V_int(1))
 ]
 
 (* check that evaluation succeeded *)
@@ -114,6 +117,7 @@ let eval_failure = [
   "let a = 1 in let f = fun (a | x : int)->int { x } in destroy(a);f(a)";
   "let a = 1 in let f = fun (a | x : int)->unit { destroy(x) } in f(a);a";
   "class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->C { let y = a in y } in let z = f(x) in x";
+  "class C {mut a : int}; class C2 {o : C};let x = C(1) in let z = C(2) in let y = C2(x) in y.o = z"
 ]
 
 let run_tests = fun () -> 

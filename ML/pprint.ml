@@ -53,7 +53,7 @@ and fmt_value v =
   |V_unit -> "()"
   |V_obj(c,o) -> "object<>"
   |V_fun(cls, caps, p, ret, e, closure) -> "closure<>"
-  |V_ptr(l,l',m,t) -> sp "pointer<%s>" (fmt_type t)
+  |V_ptr(l,l',m,t) -> sp "pointer<%d, %d, %s, %s>" l l' (if m = MUT then "mut" else "immut") (fmt_type t)
 and fmt_type t = 
   match t with
   | T_unit -> "unit"
