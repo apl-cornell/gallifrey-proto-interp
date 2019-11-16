@@ -25,22 +25,24 @@ let rec eval (st:State.t) (exp:expr): result =
         State.get_mem st loc, (c, c), k', p
     end
   |Binary(op, e1, e2) -> eval_binop st op e1 e2
-  |Fun(cls, caps, params, return, e) -> begin
-      let store = match st.store with
+  |Fun(params, rtype, body) -> begin
+      failwith "unimplemented"
+      (* let store = match st.store with
         |[] -> raise (GError "empty store")
         (* only copy head of scoping stack *)
         |h::t -> (Hashtbl.copy h):: t
       in
       (* no k', k is moved to p because nothing is really closed over/consumed here *)
-      V_fun(cls, caps, params, return, e, store), (c_any, c_none), CapSet.empty, st.k
+      V_fun(cls, caps, params, return, e, store), (c_any, c_none), CapSet.empty, st.k *)
     end 
   |Apply(fname, args) -> begin
       (* TODO constructors, unique args, check captured env *)
       let t, c, loc = State.find_var st fname in
       let v = State.get_mem st loc |> State.deref st in
       match v with
-      |V_fun(cls, caps, params, ret, expr, store) -> begin
-          (* check if "method" can be used, TODO fix this behavior *)
+      |V_fun(params, rtype, body, store) -> begin
+        failwith "unimplemented"
+          (* check if "method" can be used, TODO fix this behavior
           (match cls, st.focus with
            |Some c, Some (_, t, _) -> 
              if not (State.eq_types st (T_cls c) t) 
@@ -90,7 +92,7 @@ let rec eval (st:State.t) (exp:expr): result =
           if not (State.is_subtype st (get_type v) ret) then 
             raise (GError "invalid return type")
           else 
-            v, (r, w), k', p
+            v, (r, w), k', p *)
         end
       |_ -> raise (GError "expected a function")
     end
@@ -226,6 +228,9 @@ let rec eval (st:State.t) (exp:expr): result =
       |Int i -> (Unix.sleep i); V_unit, (c_none, c_none), CapSet.empty, st.k
       |_ -> raise (GError "expected int literal")
     end
+  |Capof e -> begin
+      failwith "unimplemented"
+    end
   |Branch(vlist, e) -> begin
       let caps = List.map vlist (fun x ->  let _, c, _ = State.find_var st x in c) |> CapSet.of_list in
       let p_k, c_k = CapSet.diff st.k caps, CapSet.inter st.k caps in
@@ -323,10 +328,11 @@ let rec eval (st:State.t) (exp:expr): result =
       check_dedup fields;
       let args = List.fold_right ~f:(fun (v, t, u, _) acc -> (v, t, u)::acc) ~init:[] fields in
       let oexpr_fields = List.fold_right ~f:(fun (v, _, u, mut) acc -> (v, Var(v), u, mut)::acc) ~init:[] fields in
-      let constructor = V_fun(None, [], args, T_cls(c), Object(c, oexpr_fields), []) in
+      failwith "unimplemented"
+      (* let constructor = V_fun(None, [], args, T_cls(c), Object(c, oexpr_fields), []) in
       State.add_var st c c_any constructor;
       Hashtbl.add_exn (List.hd_exn st.classes) c (fields, super);
-      V_unit, (c_any, c_none), CapSet.empty, st.k
+      V_unit, (c_any, c_none), CapSet.empty, st.k *)
 
 and eval_binop st bop e1 e2 = 
   (* throw away K' and K'', no caps check atm *)

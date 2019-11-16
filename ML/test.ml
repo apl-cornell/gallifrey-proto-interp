@@ -65,6 +65,7 @@ let eval_checkval = [
   ("let x = 3 in let y = 0 in while (x > 1) {y = y + x; x = x - 1}; y", V_int(5));
   ("class C {mut a : int, mut b : int}; let x = C(1,2) in destroy(x.a)", V_unit);
   ("let a = 1 in let f = fun (a | x : int)->int { x } in f(a)", V_int(1));
+  ("let x = 1 in let f = fun (x | x : int)->int { x = 2; 10 } in f(a); x", V_int(1));
   ("let a = 1 in let f = fun (a | x : int)->int { x+1 } in f(a)", V_int(2));
   ("let a = 1 in let f = fun (a | x : int)->int { x+1 } in a = f(a); a", V_int(2));
   ("let a = 1 in let f = fun (a | x : int)->unit { x = 0 } in f(a); a", V_int(1));

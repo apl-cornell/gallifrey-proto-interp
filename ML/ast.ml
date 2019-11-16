@@ -16,6 +16,7 @@ and cap = string
 and var = string
 and mut = MUT | IMMUT
 and unique = U | A
+and param = Lambda of var * var * gtype | SigmaLambda of var * var * gtype | KappaLambda of var
 
 type binop =
   | BinopAnd
@@ -38,7 +39,7 @@ type expr =
   |Unit
   |Var of var
   |Binary of binop * expr * expr
-  |Fun of string option * string list * (var * gtype * unique) list * gtype * expr
+  |Fun of param list * gtype * expr
   |Apply of var * expr list
   |Object of var * ((var * expr * unique * mut) list)
   |Get of expr * string
@@ -48,6 +49,7 @@ type expr =
   |Let of var * expr * expr
   |Destroy of expr
   |Sleep of expr
+  |Capof of expr
   |Branch of var list * expr
   |Focus of var * expr
   |Assign of expr * expr

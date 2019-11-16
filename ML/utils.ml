@@ -33,7 +33,7 @@ type value =
   |V_unit
   |V_obj of var * ((var * fieldinfo) list)
   (* string option is class cap, boolean is uniqueness *)
-  |V_fun of string option * string list * (var * gtype * unique) list * gtype * expr * t_store list
+  |V_fun of param list * gtype * expr * (t_store list)
   (* own location + value's location *)
   |V_ptr of loc * loc * mut * gtype
 and t_store = (var, storeinfo) Hashtbl.t
@@ -51,10 +51,11 @@ let get_type = function
   | V_unit -> T_unit
   | V_obj(cls, fields) -> T_cls(cls)
   | V_ptr(l, l', m, t) -> t
-  | V_fun(cls, caps, params, return, _, _) -> begin
-      let param_types = List.map params 
-          (fun (_, t, _) -> t)
-      in T_fun(param_types, return)
+  | V_fun(params, rtype, _, _) -> begin
+    failwith "unimplemented"
+      (* let param_types = List.map params 
+          (fun (_, t, _, _) -> t)
+      in T_fun(param_types, return) *)
     end
 
 module State = struct

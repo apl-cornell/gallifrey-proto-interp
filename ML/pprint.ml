@@ -16,7 +16,7 @@ let rec fmt_ast n c =
   |Unit -> "()"
   |Var v -> v
   |Binary(b, e1, e2) -> sp "%s %s %s" (fmt_ast 0 e1) (print_binop b) (fmt_ast 0 e2)
-  |Fun(cl,caps,p,r,e) -> sp "function"
+  |Fun(params, rtype, body) -> sp "function"
   |Apply(a,b) -> "apply"   
   |Object(c,o) -> "object"
   |Get(e,f) -> sp "%s.%s" (fmt_ast 0 e) f
@@ -26,6 +26,7 @@ let rec fmt_ast n c =
   |Let(v, e1, e2) -> sp "%slet %s := %s in %s" (space n) v (fmt_ast 0 e1) (fmt_ast 0 e2)
   |Destroy e -> sp "destroy(%s)" (fmt_ast 0 e)
   |Sleep e -> sp "sleep(%s)" (fmt_ast 0 e)
+  |Capof e -> sp "capof(%s)" (fmt_ast 0 e)
   |Branch(v,e) -> sp "%sbranch" (space n)
   |Focus(v, e2) -> sp "%sfocus %s {\n%s\n}" (space n) (v) (fmt_ast (n+2) e2)
   |Assign(e1, e2) -> sp "%s%s := %s" (space n) (fmt_ast 0 e1) (fmt_ast 0 e2)
@@ -52,7 +53,7 @@ and fmt_value v =
   |V_bool b -> (string_of_bool b)
   |V_unit -> "()"
   |V_obj(c,o) -> "object<>"
-  |V_fun(cls, caps, p, ret, e, closure) -> "closure<>"
+  |V_fun(params, rtype, body, env) -> "closure<>"
   |V_ptr(l,l',m,t) -> sp "pointer<%d, %d, %s, %s>" l l' (if m = MUT then "mut" else "immut") (fmt_type t)
 and fmt_type t = 
   match t with

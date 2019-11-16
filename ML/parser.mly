@@ -27,7 +27,7 @@ let dedup_obj_field t_obj =
   SKIP ASSIGN SEMI IF THEN ELSE WHILE DO
   LBRACE RBRACE
   PRINT COMMA COLON DOT ARROW LAMBDA T_INT T_BOOL T_UNIT
-  BRANCH FOCUS U MUT SLEEP UNIT LET IN DESTROY CLASS EXTENDS
+  BRANCH FOCUS U MUT SLEEP UNIT LET IN DESTROY CLASS EXTENDS CAPOF
 %token EOF
 
 %nonassoc IN
@@ -47,10 +47,10 @@ let dedup_obj_field t_obj =
 
 %type <Ast.expr> expr
 %type <Ast.expr> p
-%type <(Ast.var * Ast.gtype * Ast.unique) list> paramlist
+%type <Ast.param list> lambdalist
+%type <Ast.param list> biglambda
+%type <Ast.param list> biglambdalist
 %type <Ast.expr list> exprlist
-/* %type <string * Ast.expr * Ast.unique * Ast.mut> field_bind
-%type <(string * Ast.expr * Ast.unique * Ast.mut) list> fieldbindlist */
 %type <Ast.gtype> type
 %type <Ast.gtype list > typelist
 %type <string list> varlist
@@ -76,11 +76,20 @@ varlist:
 | VAR {[snd $1]}
 | VAR COMMA varlist {(snd $1)::$3}
 
-paramlist :
-| VAR COLON type {[(snd $1, $3, A)]}
-| U VAR COLON type {[(snd $2, $4, U)]}
-| VAR COLON type COMMA paramlist {(snd $1, $3, A)::$5}
-| U VAR COLON type COMMA paramlist {(snd $2, $4, U)::$6}
+lambdalist :
+| VAR COLON VAR type { [Lambda(snd $1, snd $3, $4)]}
+| VAR COLON VAR type COMMA lambdalist { Lambda(snd $1, snd $3, $4)::$6 }
+
+biglambda :
+| LPAREN VAR COLON VAR CVAR OR lambdalist RPAREN { (SigmaLambda(snd $2, snd $4, T_cls(snd $5)))::$7 }
+| LPAREN VAR COLON VAR CVAR OR RPAREN { [SigmaLambda(snd $2, snd $4, T_cls(snd $5))] }
+| LPAREN OR lambdalist RPAREN { $3 }
+| LPAREN VAR OR RPAREN { [KappaLambda(snd $2)] }
+| LPAREN VAR OR lambdalist RPAREN { (KappaLambda(snd $2))::$4 }
+
+biglambdalist : 
+| biglambda { $1 }
+| biglambda biglambdalist { ($1)@($2) }
 
 fieldlist :
 | VAR COLON type {[(snd $1, $3, A, IMMUT)]}
@@ -95,16 +104,6 @@ fieldlist :
 exprlist :
 | expr {[$1]}
 | expr COMMA exprlist {$1::$3}
-
-/* field_bind:
-  | VAR COLON expr { (snd $1, $3, A, IMMUT) }
-  | U VAR COLON expr { (snd $2, $4, U, IMMUT) }
-  | MUT VAR COLON expr { (snd $2, $4, A, MUT) }
-  | MUT U VAR COLON expr { (snd $3, $5, U, MUT) }
-
-fieldbindlist : 
-| field_bind {[$1]}
-| field_bind COMMA fieldbindlist {$1::$3} */
 
 expr : 
   | MINUS expr { Neg($2) }
@@ -122,14 +121,12 @@ expr :
   | expr GEQ expr { Binary(BinopGeq, $1, $3) }
   | expr NOTEQUALS expr { Binary(BinopNeq, $1, $3) }
   | expr EQUALS expr { Binary(BinopEq, $1, $3) }
-  | LAMBDA LPAREN OR paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun(None, [], $4, $7, $9) }
-  | LAMBDA VAR LPAREN OR paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun(Some(snd $2), [], $5, $8, $10) }
-  | LAMBDA LPAREN varlist OR paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun(None, $3, $5, $8, $10) }
-  | LAMBDA VAR LPAREN varlist OR paramlist RPAREN ARROW type LBRACE expr RBRACE { Fun(Some(snd $2), $4, $6, $9, $11) }
+  | LAMBDA biglambdalist ARROW type LBRACE expr RBRACE { Fun($2, $4, $6) }
   | VAR LPAREN exprlist RPAREN {  Apply(snd $1, $3) }
   | CVAR LPAREN exprlist RPAREN {  Apply(snd $1, $3) }
   | DESTROY LPAREN expr RPAREN {  Destroy($3) }
   | SLEEP LPAREN expr RPAREN {  Sleep($3) }
+  | CAPOF LPAREN expr RPAREN {  Capof($3) }
   | TRUE                 { Bool(true) }
   | FALSE                { Bool(false) }
   | INT                  { Int(snd $1) }
