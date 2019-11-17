@@ -41,7 +41,7 @@ type expr =
   |Var of var
   |Binary of binop * expr * expr
   |Fun of param list * gtype * expr
-  |Apply of var * expr list
+  |Apply of expr * (expr list)
   |Object of var * ((var * expr * unique * mut) list)
   |Get of expr * string
   |Seq of expr * expr

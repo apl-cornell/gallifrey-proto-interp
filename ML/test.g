@@ -1,1 +1,1 @@
-fun (x | x:x int, y:x int) (a| b:x int, c:a int)  (a| d:a int, e:a int)  -> int { x }
+(fun (x | x:x int, y:x int) (a| b:x int, c:a int)  (a| d:a int, e:a int)  -> int { x }) (x) (y) (z)

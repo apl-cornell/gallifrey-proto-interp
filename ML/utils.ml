@@ -119,7 +119,7 @@ module State = struct
   type t = {
     k: CapSet.t;
     store: t_store list;
-    focus: (cap * gtype * loc) option; 
+    focus: (cap * gtype * loc) list; 
     classes: classes list; (* unsure about this one *)
     mem: memory;
     counter: int ref;
@@ -129,7 +129,7 @@ module State = struct
     {
       k = CapSet.singleton c_any;
       store = [Hashtbl.create (module String)];
-      focus = None;
+      focus = [];
       classes = [Hashtbl.create (module String)];
       mem = Hashtbl.create (module Int);
       counter = ref 0;

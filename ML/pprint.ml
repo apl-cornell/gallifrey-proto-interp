@@ -17,7 +17,7 @@ let rec fmt_ast n c =
   |Var v -> v
   |Binary(b, e1, e2) -> sp "%s %s %s" (fmt_ast 0 e1) (print_binop b) (fmt_ast 0 e2)
   |Fun(params, rtype, body) -> sp "%sfun(%s)->%s {\n%s\n}" (space n) (fmt_list fmt_param params) (fmt_type rtype) (fmt_ast (n+2) body)
-  |Apply(a,b) -> "apply"   
+  |Apply(a,b) -> sp "%sapply(%s %s)" (space n) (fmt_ast 0 a) (fmt_list (fmt_ast 0) b)
   |Object(c,o) -> "object"
   |Get(e,f) -> sp "%s.%s" (fmt_ast 0 e) f
   |Seq(e1, e2) -> sp "%s;\n%s" (fmt_ast n e1) (fmt_ast n e2)
