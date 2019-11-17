@@ -9,8 +9,9 @@ type gtype =
   | T_unit 
   | T_int 
   | T_bool 
-  | T_fun of (gtype list) * gtype
+  | T_fun of param list * gtype
   | T_cls of string
+  | T_cap
 and t_obj = (var * gtype * unique * mut) list
 and cap = string
 and var = string

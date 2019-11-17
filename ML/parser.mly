@@ -2,6 +2,7 @@
 open Ast
 open Printf
 open Lexing
+open Utils
 
 exception DuplicateField
 
@@ -64,7 +65,7 @@ let dedup_obj_field t_obj =
 type :
 | T_INT {T_int}
 | T_BOOL {T_bool}
-| LT typelist ARROW type GT {T_fun($2, $4)}
+| LT biglambdalist ARROW type GT { T_fun(Utils.normalize $2, $4) }
 | T_UNIT {T_unit}
 | CVAR {T_cls(snd $1)}
 
@@ -121,7 +122,7 @@ expr :
   | expr GEQ expr { Binary(BinopGeq, $1, $3) }
   | expr NOTEQUALS expr { Binary(BinopNeq, $1, $3) }
   | expr EQUALS expr { Binary(BinopEq, $1, $3) }
-  | LAMBDA biglambdalist ARROW type LBRACE expr RBRACE { Fun($2, $4, $6) }
+  | LAMBDA biglambdalist ARROW type LBRACE expr RBRACE { Fun(Utils.normalize $2, $4, $6) }
   | VAR LPAREN exprlist RPAREN {  Apply(snd $1, $3) }
   | CVAR LPAREN exprlist RPAREN {  Apply(snd $1, $3) }
   | DESTROY LPAREN expr RPAREN {  Destroy($3) }

@@ -1,1 +1,1 @@
-class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->C { let y = a in y } in (f(x)).a
+fun (x | x:x int, y:x int) (a| b:x int, c:a int)  (a| d:a int, e:a int)  -> int { x }

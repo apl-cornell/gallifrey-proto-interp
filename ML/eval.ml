@@ -11,6 +11,7 @@ type result = value * (cap * cap) * CapSet.t * CapSet.t
 
 let rec eval (st:State.t) (exp:expr): result = 
   (* do we transfer K to P in all of these *)
+  let result = 
   match exp with
   |Int i -> V_int(i), (c_any, c_none), CapSet.empty, st.k
   |Bool b -> V_bool(b), (c_any, c_none), CapSet.empty, st.k
@@ -26,17 +27,15 @@ let rec eval (st:State.t) (exp:expr): result =
     end
   |Binary(op, e1, e2) -> eval_binop st op e1 e2
   |Fun(params, rtype, body) -> begin
-      failwith "unimplemented"
-      (* let store = match st.store with
+      let store = match st.store with
         |[] -> raise (GError "empty store")
         (* only copy head of scoping stack *)
         |h::t -> (Hashtbl.copy h):: t
       in
       (* no k', k is moved to p because nothing is really closed over/consumed here *)
-      V_fun(cls, caps, params, return, e, store), (c_any, c_none), CapSet.empty, st.k *)
+      V_fun(params, rtype, body, store), (c_any, c_none), CapSet.empty, st.k
     end 
   |Apply(fname, args) -> begin
-      (* TODO constructors, unique args, check captured env *)
       let t, c, loc = State.find_var st fname in
       let v = State.get_mem st loc |> State.deref st in
       match v with
@@ -229,7 +228,9 @@ let rec eval (st:State.t) (exp:expr): result =
       |_ -> raise (GError "expected int literal")
     end
   |Capof e -> begin
-      failwith "unimplemented"
+      match e with
+      |Var x -> let _, c, _ = State.find_var st x in V_cap c, (c_any, c_any), CapSet.empty, st.k
+      |_ -> raise (GError "expected variable")
     end
   |Branch(vlist, e) -> begin
       let caps = List.map vlist (fun x ->  let _, c, _ = State.find_var st x in c) |> CapSet.of_list in
@@ -306,12 +307,6 @@ let rec eval (st:State.t) (exp:expr): result =
       | V_bool i -> V_bool(not i), (r, w), CapSet.empty, p
       | _ -> raise (GError "expected bool for boolean negation")
     end
-  (* |This -> begin
-      (* nothing is consumed, TODO immutable pointer; can we apply framing here? *)
-      match st.focus with
-      |Some (c, t, loc) -> V_ptr(-1, loc, IMMUT, t), (c, c_none), CapSet.empty, st.k
-      |None -> raise (GError "not in focus")
-     end *)
   |Class(c,fields,super) -> 
     let check_dedup t_obj = 
       let sorted = List.dedup_and_sort (fun (x,_,_,_) (y,_,_,_) -> String.compare x y) t_obj in
@@ -333,6 +328,8 @@ let rec eval (st:State.t) (exp:expr): result =
       State.add_var st c c_any constructor;
       Hashtbl.add_exn (List.hd_exn st.classes) c (fields, super);
       V_unit, (c_any, c_none), CapSet.empty, st.k *)
+    in
+    State.validate_result st result
 
 and eval_binop st bop e1 e2 = 
   (* throw away K' and K'', no caps check atm *)
@@ -356,4 +353,5 @@ and eval_binop st bop e1 e2 =
     |_ -> raise (GError "invalid binop")
   in
   let cr, cw = reconcile_caps (r1, w1) (r2, w2) k' k'' in
-  v', (cr, cw), CapSet.empty, pr
+  let result = v', (cr, cw), CapSet.empty, pr in
+  State.validate_result st result

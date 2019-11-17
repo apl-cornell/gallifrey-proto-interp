@@ -5,7 +5,7 @@ let sp = Printf.sprintf
 let rec space n = if n = 0 then "" else " " ^ space (n-1)
 
 let fmt_list f l =
-  List.map l f |> String.concat ", "
+  List.map f l |> String.concat ", "
 
 (* TODO complete pretty-printing *)
 
@@ -16,7 +16,7 @@ let rec fmt_ast n c =
   |Unit -> "()"
   |Var v -> v
   |Binary(b, e1, e2) -> sp "%s %s %s" (fmt_ast 0 e1) (print_binop b) (fmt_ast 0 e2)
-  |Fun(params, rtype, body) -> sp "function"
+  |Fun(params, rtype, body) -> sp "%sfun(%s)->%s {\n%s\n}" (space n) (fmt_list fmt_param params) (fmt_type rtype) (fmt_ast (n+2) body)
   |Apply(a,b) -> "apply"   
   |Object(c,o) -> "object"
   |Get(e,f) -> sp "%s.%s" (fmt_ast 0 e) f
@@ -53,15 +53,23 @@ and fmt_value v =
   |V_bool b -> (string_of_bool b)
   |V_unit -> "()"
   |V_obj(c,o) -> "object<>"
-  |V_fun(params, rtype, body, env) -> "closure<>"
+  |V_fun(params, rtype, body, env) -> sp "fun<(%s)->%s {\n%s\n}>" (fmt_list fmt_param params) (fmt_type rtype) (fmt_ast 0 body)
   |V_ptr(l,l',m,t) -> sp "pointer<%d, %d, %s, %s>" l l' (if m = MUT then "mut" else "immut") (fmt_type t)
+  |V_cap c -> "cap<c>"
 and fmt_type t = 
   match t with
   | T_unit -> "unit"
   | T_int -> "int"
   | T_bool -> "bool"
-  | T_fun(params, return) -> sp "%s -> %s" (fmt_list params fmt_type) (fmt_type return)
+  | T_fun(params, return) -> sp "%s -> %s" (fmt_list fmt_param params) (fmt_type return)
   | T_cls name -> name
+  | T_cap -> "cap"
+
+and fmt_param p =  
+  match p with
+  |Lambda(v, c, t) -> sp "λ %s : %s %s" v c (fmt_type t)
+  |SigmaLambda(v, c, t) -> sp "Λ %s : %s %s" v c (fmt_type t)
+  |KappaLambda c -> sp "Λ %s" c
 
 let print_node node = fmt_ast 0 node
 

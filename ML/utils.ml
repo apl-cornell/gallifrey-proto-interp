@@ -13,20 +13,6 @@ module CapSet = Set.Make(String)
 let c_any = "ANY"
 let c_none = "NONE"
 
-let stringify_hashtbl_stack s = 
-  let rec helper s acc = 
-    match s with 
-    |h::t -> helper t (acc @ Hashtbl.keys h)
-    |[] -> acc
-  in
-  "[" ^ (String.concat ~sep:"," (helper s [])) ^ "]"
-
-let stringify_capset s = 
-  "[" ^ (String.concat ~sep:"," (CapSet.to_list s)) ^ "]"
-
-let stringify_list l = 
-  "[" ^ String.concat ~sep:"," l ^ "]"
-
 type value = 
   |V_int of int
   |V_bool of bool
@@ -36,6 +22,7 @@ type value =
   |V_fun of param list * gtype * expr * (t_store list)
   (* own location + value's location *)
   |V_ptr of loc * loc * mut * gtype
+  |V_cap of var
 and t_store = (var, storeinfo) Hashtbl.t
 and loc = int
 (* type, capability, location *)
@@ -45,18 +32,88 @@ and fieldinfo = (gtype * unique * mut * loc)
 and memory = (loc, value) Hashtbl.t
 and classes = (var, (t_obj * var option)) Hashtbl.t
 
+let hashtbl_stack_tolist s = 
+  let rec helper s acc = 
+    match s with 
+    |h::t -> helper t (acc @ Hashtbl.to_alist h)
+    |[] -> acc
+  in
+  helper s []
+
+let hashtbl_stack_keys s = 
+  let rec helper s acc = 
+    match s with 
+    |h::t -> helper t (acc @ Hashtbl.keys h)
+    |[] -> acc
+  in
+  helper s []
+
+let hashtbl_stack_vals func s = 
+  let rec helper s acc = 
+    match s with 
+    |h::t -> helper t (acc @ (List.map (Hashtbl.data h) func))
+    |[] -> acc
+  in
+  helper s []
+
+let rec substitute_cap metacap cap lambdalist = 
+  match lambdalist with
+  |[] -> []
+  |hd::tl -> begin
+      match hd with
+      |Lambda(var, meta, t) when meta = metacap -> Lambda(var, cap, t)::(substitute_cap metacap cap tl)
+      |Lambda(var, meta, t) -> hd::(substitute_cap metacap cap tl)
+      |SigmaLambda(var, meta, t) when meta = metacap -> lambdalist
+      |SigmaLambda(var, meta, t) -> hd::(substitute_cap metacap cap tl)
+      |KappaLambda meta when meta = metacap -> lambdalist
+      |KappaLambda meta -> hd::(substitute_cap metacap cap tl)
+    end
+
+let normalize biglambdalist = 
+  let rec helper lst metacaps cap_num =
+    match lst with
+    |[] -> []
+    |hd::tl -> begin
+        match hd with
+        |Lambda(var, meta, t) as l -> 
+          if List.mem metacaps meta (=) then l::(helper tl metacaps cap_num) 
+          else raise (GError ("unknown meta-cap "^meta))
+        |SigmaLambda(var, meta, t) as l -> 
+          if List.mem metacaps meta (=) then 
+            l::(helper tl metacaps cap_num) 
+          else
+            let newmeta = "_mc"^(string_of_int cap_num) in
+            let subs = substitute_cap meta newmeta tl in
+            (SigmaLambda(var, newmeta, t))::(helper subs (newmeta::metacaps) (cap_num + 1)) 
+        |KappaLambda meta as l -> 
+          if List.mem metacaps meta (=) then 
+            l::(helper tl metacaps cap_num) 
+          else
+            let newmeta = "_mc"^(string_of_int cap_num) in
+            let subs = substitute_cap meta newmeta tl in
+            (KappaLambda(newmeta))::(helper subs (newmeta::metacaps) (cap_num + 1)) 
+      end
+  in
+  helper biglambdalist [] 1
+
+let stringify_hashtbl_stack s = 
+  let keys = hashtbl_stack_keys s in
+  "[" ^ (String.concat ~sep:"," keys) ^ "]"
+
+let stringify_capset s = 
+  "[" ^ (String.concat ~sep:"," (CapSet.to_list s)) ^ "]"
+
+let stringify_list l = 
+  "[" ^ String.concat ~sep:"," l ^ "]"
+
 let get_type = function
   | V_int _ -> T_int
   | V_bool _ -> T_bool
   | V_unit -> T_unit
   | V_obj(cls, fields) -> T_cls(cls)
   | V_ptr(l, l', m, t) -> t
-  | V_fun(params, rtype, _, _) -> begin
-    failwith "unimplemented"
-      (* let param_types = List.map params 
-          (fun (_, t, _, _) -> t)
-      in T_fun(param_types, return) *)
-    end
+  | V_fun(params, rtype, _, _) -> T_fun(params, rtype)
+  | V_cap _ -> T_cap
 
 module State = struct
   type t = {
@@ -77,6 +134,17 @@ module State = struct
       mem = Hashtbl.create (module Int);
       counter = ref 0;
     }
+
+  (* simple runtime validations to aid debugging *)
+  let validate_result st (value, (r,w), k', p) =
+    if CapSet.mem k' c_any then raise (GError "c_any in k'") else
+    if CapSet.mem k' c_none then raise (GError "c_none in k'") else 
+    if CapSet.mem p c_any then raise (GError "c_any in p") else
+    if CapSet.mem p c_none then raise (GError "c_none in p") else 
+    if (CapSet.inter k' p |> CapSet.length) > 0 then raise (GError "k' and p intersect") else
+    let store_types = hashtbl_stack_vals (fun (t,_,_) -> t) st.store in
+    List.iter store_types (fun t -> if t = T_cap then raise (GError "not allowed to store result of capof") else ());
+    (value, (r,w), k', p)
 
   (* unique number generator *)
   let unique s = 
@@ -156,7 +224,11 @@ module State = struct
       |[] -> ()
       |h::t -> begin
           match Hashtbl.find h k with
-          |Some((t,c,loc)) -> Hashtbl.set h k (t,c,newloc)
+          |Some((t,c,loc)) -> begin 
+            let newval = get_mem s loc in
+            if get_type newval <> t then raise (GError "old and new types don't match")
+            else Hashtbl.set h k (t,c,newloc)
+          end
           |None -> update_helper t k newloc
         end
     in update_helper s.store k newloc
@@ -179,7 +251,8 @@ module State = struct
         let v' = get_mem st l' in
         is_mutable st v'
       end
-    | V_fun(_) -> true
+    (* functions are considered immutable *)
+    | V_fun(_) -> false
     |_ -> false
 
   let rec destroy_store store cap = 
@@ -201,13 +274,19 @@ module State = struct
 
   let rec eq_types st t1 t2 = 
     match t1, t2 with
+    |T_cap, T_cap -> true
     |T_unit, T_unit -> true
     |T_int, T_int -> true
     |T_bool, T_bool -> true
     |T_fun(i,o), T_fun(i2, o2) -> begin
         let eq_inputs = List.fold2_exn 
             i i2 ~init:true 
-            ~f:(fun acc a b -> if not (eq_types st a b) then false else true && acc) in
+            ~f:(fun acc param1 param2 -> match param1, param2 with
+                |KappaLambda c1, KappaLambda c2 -> if c1 <> c2 then false else true && acc
+                |SigmaLambda(_,c1,t1), SigmaLambda(_,c2,t2) -> if (not (eq_types st t2 t1)) || c1 <> c2 then false else true && acc
+                |Lambda(_,c1,t1), Lambda(_,c2,t2) -> if (not (eq_types st t2 t1)) || c1 <> c2 then false else true && acc
+                |_ -> false
+              ) in
         eq_inputs && (eq_types st o o2)
       end
     |T_cls(cname1), T_cls(cname2) -> cname1 = cname2
@@ -222,11 +301,16 @@ module State = struct
         (* contravariant in input, covariant in output *)
         let eq_inputs = List.fold2_exn 
             i i2 ~init:true 
-            ~f:(fun acc a b -> if not (is_subtype st b a) then false else true && acc) in
+            ~f:(fun acc param1 param2 -> match param1, param2 with
+                |KappaLambda c1, KappaLambda c2 -> if c1 <> c2 then false else true && acc
+                |SigmaLambda(_,c1,t1), SigmaLambda(_,c2,t2) -> if (not (is_subtype st t2 t1)) || c1 <> c2 then false else true && acc
+                |Lambda(_,c1,t1), Lambda(_,c2,t2) -> if (not (is_subtype st t2 t1)) || c1 <> c2 then false else true && acc
+                |_ -> false
+              ) in
         eq_inputs && (is_subtype st o o2)
       end
     |T_cls(cname1), T_cls(cname2) -> 
-    (* purely for formatting/readability *)
+      (* purely for formatting/readability *)
       if cname1 = cname2 then true 
       else List.mem (getall_supercls st cname1) cname2 (=)
     |_ -> false
