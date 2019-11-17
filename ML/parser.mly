@@ -55,7 +55,7 @@ let dedup_obj_field t_obj =
 %type <Ast.param list> biglambdalist
 %type <Ast.expr list> exprlist
 %type <Ast.gtype> type
-%type <Ast.gtype list > typelist
+/* %type <Ast.gtype list > typelist */
 %type <string list> varlist
 
 
@@ -71,9 +71,9 @@ type :
 | T_UNIT {T_unit}
 | CVAR {T_cls(snd $1)}
 
-typelist :
+/* typelist :
 | type {[$1]}
-| type COMMA typelist {$1 :: $3}
+| type COMMA typelist {$1 :: $3} */
 
 varlist:
 | VAR {[snd $1]}
