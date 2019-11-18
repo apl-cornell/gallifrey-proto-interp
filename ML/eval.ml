@@ -181,6 +181,7 @@ and eval_binop st bop e1 e2 =
   let result = v', (cr, cw), CapSet.empty, pr in
   State.validate_result st result
 
+(* FUNCTION APPLICATION *)
 and eval_apply st func args = 
   let v, (r, w), k', p = eval st func |> autoclone st in
   match State.deref st v with
@@ -259,6 +260,7 @@ and eval_apply st func args =
     end
   |_ -> raise (GError "expected a function")
 
+(* CONSTRUCTOR BODY *)
 and eval_object st cls fields = 
   (* originally for obj literals, currently this node is only used in constructors *)
   (* helper function for processing a field and setting up the correct pointers *)
@@ -298,6 +300,7 @@ and eval_object st cls fields =
   Hashtbl.set st.mem loc obj;
   ptr, (c, c), k', p
 
+(* CLASS DECLARATION *)
 and eval_cls_decl st c fields super = 
   let check_dedup t_obj = 
     let sorted = List.dedup_and_sort (fun (x,_,_,_) (y,_,_,_) -> String.compare x y) t_obj in
