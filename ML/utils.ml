@@ -56,6 +56,9 @@ let hashtbl_stack_vals func s =
   in
   helper s []
 
+let g_assert b msg = 
+  if not b then raise (GError msg) else ()
+
 let rec substitute_cap metacap cap lambdalist = 
   match lambdalist with
   |[] -> []
