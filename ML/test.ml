@@ -37,6 +37,16 @@ let rec compare_values st a b =
 
 (* check if result value is correct *)
 let eval_checkval = [
+  ("true & false", V_bool(false));
+  ("true | false", V_bool(true));
+  ("10 * 2", V_int(20));
+  ("10 / 2", V_int(5));
+  ("10 % 7", V_int(3));
+  ("1 == 2", V_bool(false));
+  ("1 != 2", V_bool(true));
+  ("1 >= 2", V_bool(false));
+  ("1 <= 2", V_bool(true));
+  ("1 < 2", V_bool(true));
   ("let x = 1 in x;x", V_int(1));
   ("let x = 1 in x + x", V_int(2));
   ("let x = true in if x {4} else {6}", V_int(4));
@@ -49,6 +59,7 @@ let eval_checkval = [
   ("class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y.a = x.a; x.a = 3; x.a)", V_int(3));
   ("class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y.a = x.a; x.a = 3; y.a)", V_int(1));
   ("let x = 1 in x = x;x", V_int(1));
+  ("let x = 1 in -x", V_int(-1));
   ("class C {mut a : int}; let c = 1 in let x = C(capof(c),c) in x.a = x.a;x.a", V_int(1));
   ("let x = 1 in let y = 5 in y = x + y; y+x", V_int(7));
   ("class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y.a = x.a; y.a)", V_int(1));
@@ -65,6 +76,9 @@ let eval_checkval = [
   ("let x = 3 in let y = 0 in while (x > 1) {y = y + x; x = x - 1}; y", V_int(5));
   ("class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c, c) in destroy(x.a)", V_unit);
   ("let a = 1 in let f = fun (a | x : a int)->int { x } in f(capof(a),a)", V_int(1));
+  ("let a = 1 in let f = fun (a | x : a int)->int { x } in let f2 = fun (a | x : a int)->int { f(capof(x), x) } in f2(capof(a),a)", V_int(1));
+  ("let a = 1 in let b = 2 in let f = fun (a | x : a int) (b | y : b int)->int { x + y } in f(capof(a), a, capof(b), b)", V_int(3));
+  ("let a = 1 in let f = fun (a | x : a int, y: a int)->int { x + y } in f(capof(a), a, a)", V_int(2));
   ("let a = 1 in let f = fun (a | x : a int)->int { x = 2; 10 } in f(capof(a),a); a", V_int(1));
   ("let a = 1 in let f = fun (a | x : a int)->int { x+1 } in f(capof(a),a)", V_int(2));
   ("let a = 1 in let f = fun (a | x : a int)->int { x+1 } in a = f(capof(a),a); a", V_int(2));
@@ -93,13 +107,17 @@ let eval_checkval = [
   ("class C {a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | z : x int)->int { z = z + 1; z } in f(capof(x),x.a); x.a", V_int(2));
   ("class C {a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | z : x int)->int { z = z + 1; z } in f(capof(x),x.a); x.a", V_int(2));
   ("class C {mut a : int}", V_unit);
+  ("class C {mut U a : int}", V_unit);
   ("class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in x.a", V_int(1));
   ("class C {mut a : int}; class C2 extends C {mut b : int}; let c = 1 in let x = C2(capof(c),c,2) in x.b", V_int(2));
   ("class C {mut a : int}; class C2 extends C {mut b : int}; let c = 1 in let x = C2(capof(c),c,2) in x.a", V_int(1));
   ("class C {mut a : int}; class C2 extends C {mut b : int}; let c = 1 in let x = C2(capof(c),c,2) in let f = fun (x | a : x C)->int { a.a } in f(capof(x), x)", V_int(1));
   ("class C {mut a : int}; class C2 {o : C};let c = 1 in let x = C(capof(c), c) in let y = C2(capof(x), x) in y.o.a", V_int(1));
   ("class C {mut a : int}; class C2 {o : C};let c = 1 in let x = C(capof(c), c) in let y = C2(capof(x), x) in y.o.a = 0; y.o.a", V_int(1));
-  ("let x = 1 in destroy(x); x = 3; x", V_int(3))
+  ("let x = 1 in destroy(x); x = 3; x", V_int(3));
+  ("class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c, c) in x.a", V_int(1));
+  ("class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c, c) in x.b", V_int(1));
+  ("class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c, c) in x.b; x.a", V_int(1));
 ]
 
 (* check that evaluation succeeded *)
@@ -108,6 +126,7 @@ let eval_success = [
   "class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y = x; y)";
   "class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { a } in f(capof(x), x)";
   "class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { let y = a in y } in f(capof(x), x)";
+  "sleep(0)";
 ]
 
 (* check that evaluation failed *)
@@ -115,11 +134,19 @@ let eval_failure = [
   "let x = 1 in (destroy(x);destroy(x))";
   "let x = 1 in (destroy(x);x)";
   "let x = 1 in branch x {x}; x";
-  "class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c,2) in destroy(x.a);x.b";
+  "class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c, c) in destroy(x.a);x.b";
   "let a = 1 in let f = fun (a | x : a int)->int { x } in destroy(a);f(capof(a), a)";
   "let a = 1 in let f = fun (a | x : a int)->unit { destroy(x) } in f(capof(a),a);a";
   "class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { let y = a in y } in let z = f(capof(x), x) in x";
-  "class C {mut a : int}; class C2 {o : C};let c = 1 in let d = 2 in let x = C(capof(c), c) in let x = C(capof(d), d) in let y = C2(capof(x), x) in y.o = z"
+  "class C {mut a : int}; class C2 {o : C};let c = 1 in let d = 2 in let x = C(capof(c), c) in let x = C(capof(d), d) in let y = C2(capof(x), x) in y.o = z";
+  "let x = 3 in sleep(x)";
+  "let x = 3 in x.y";
+  "while (1) { 0 }";
+  "if (3) {2} else {1}";
+  "let a = 1 in let f = fun (a | x : a int)-> bool { x+1 } in f(capof(a),a)";
+  "let x = 1 in x(1)";
+  "3 = 2";
+  "class C {mut a : int}; let x = 1 in let y = C2(capof(x), x) in y";
 ]
 
 let run_tests = fun () -> 
