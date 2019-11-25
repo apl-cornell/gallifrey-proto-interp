@@ -2,16 +2,78 @@ open Core
 include Ast
 
 (* Interpreter exceptions. *)
-exception UnboundVariable of var
+(* exception UnboundVariable of var
 exception TypeError of string
 exception NameError of string
 exception UnboundFieldError of string
-exception ResourceDestroyedError of string
+exception ResourceDestroyedError of string *)
 exception GError of string
 
-module CapSet = Set.Make(String)
+(* module StringSet = Set.Make(String) *)
 let c_any = "ANY"
 let c_none = "NONE"
+
+(* module CapSet = struct 
+   type t = StringSet.t
+
+   let empty = StringSet.empty
+
+   let add set elt = 
+    if elt <> c_any && elt <> c_none then
+      StringSet.add set elt
+    else set
+
+   let remove = StringSet.remove
+
+   let inter = StringSet.inter
+
+   let union = StringSet.union
+
+   let diff = StringSet.diff
+
+   let to_list = StringSet.to_list
+
+   let of_list = StringSet.of_list
+
+   let singleton elt = 
+    if elt <> c_any && elt <> c_none then StringSet.singleton elt
+    else StringSet.empty
+
+   let mem = StringSet.mem
+
+   let length = StringSet.length
+   end *)
+
+module CapSet = struct 
+  type t = cap list
+
+  let empty = []
+
+  let mem set elt = List.mem set elt (=)
+
+  let add set elt = 
+    if elt <> c_any && elt <> c_none && (mem set elt |> not) then
+      elt::set
+    else set
+
+  let remove set elt = List.filter set (fun e -> e <> elt)
+
+  let inter s1 s2 = List.filter s1 (fun e -> mem s2 e)
+
+  let union s1 s2 = List.dedup_and_sort ~compare:(Pervasives.compare) (s1 @ s2)
+
+  let diff s1 s2 = List.filter s1 (fun e -> mem s2 e |> not)
+
+  let to_list x = x
+
+  let of_list x = x
+
+  let singleton elt = 
+    if elt <> c_any && elt <> c_none then [elt]
+    else []
+
+  let length = List.length
+end
 
 type value = 
   |V_int of int
@@ -22,7 +84,7 @@ type value =
   |V_fun of param list * gtype * expr * (t_store list)
   (* own location + value's location *)
   |V_ptr of loc * loc * mut * gtype
-  |V_cap of var
+  |V_cap of cap
 and t_store = (var, storeinfo) Hashtbl.t
 and loc = int
 (* type, capability, location *)
@@ -130,7 +192,7 @@ module State = struct
 
   let init = fun () -> 
     {
-      k = CapSet.singleton c_any;
+      k = CapSet.empty;
       store = [Hashtbl.create (module String)];
       focus = [];
       classes = [Hashtbl.create (module String)];
@@ -140,13 +202,13 @@ module State = struct
 
   (* simple runtime validations to aid debugging *)
   let validate_result st (value, (r,w), k', p) =
-    if CapSet.mem k' c_any then raise (GError "c_any in k'") else
-    if CapSet.mem k' c_none then raise (GError "c_none in k'") else 
-    if CapSet.mem p c_any then raise (GError "c_any in p") else
-    if CapSet.mem p c_none then raise (GError "c_none in p") else 
-    if (CapSet.inter k' p |> CapSet.length) > 0 then raise (GError "k' and p intersect") else
+    g_assert (not (CapSet.mem k' c_any)) "c_any in k'";
+    g_assert (not (CapSet.mem k' c_none)) "c_none in k'";
+    g_assert (not (CapSet.mem p c_any)) "c_any in p";
+    g_assert (not (CapSet.mem p c_none)) "c_none in p";
+    g_assert ((CapSet.inter k' p |> CapSet.length) = 0) "k' and p intersect";
     let store_types = hashtbl_stack_vals (fun (t,_,_) -> t) st.store in
-    List.iter store_types (fun t -> if t = T_cap then raise (GError "not allowed to store result of capof") else ());
+    List.iter store_types (fun t -> g_assert (t <> T_cap) "not allowed to store result of capof");
     (value, (r,w), k', p)
 
   (* unique number generator *)
@@ -213,7 +275,7 @@ module State = struct
     |_ -> raise (GError "expected pointer")
 
   (* check it capability is in K *)
-  let has_cap s c = CapSet.mem s.k c
+  let has_cap s c = c = c_any || CapSet.mem s.k c
 
   let deref s v = 
     match v with
@@ -228,10 +290,10 @@ module State = struct
       |h::t -> begin
           match Hashtbl.find h k with
           |Some((t,c,loc)) -> begin 
-            let newval = get_mem s loc in
-            if get_type newval <> t then raise (GError "old and new types don't match")
-            else Hashtbl.set h k (t,c,newloc)
-          end
+              let newval = get_mem s loc in
+              if get_type newval <> t then raise (GError "old and new types don't match")
+              else Hashtbl.set h k (t,c,newloc)
+            end
           |None -> update_helper t k newloc
         end
     in update_helper s.store k newloc
@@ -327,7 +389,7 @@ module State = struct
     Hashtbl.add_exn st.mem loc2 value
 end
 
-let reconcile_read c1 c2 k1 k2 = 
+let reconcile_read (c1:cap) (c2:cap) (k1:CapSet.t) (k2:CapSet.t) = 
   match c1, c2 with
   |(a,b) when a = b -> a
   (* top relabel *)
@@ -341,7 +403,7 @@ let reconcile_read c1 c2 k1 k2 =
     else if CapSet.mem k2 b then a
     else c_none (* drop read  *)
 
-let reconcile_write c1 c2 = 
+let reconcile_write (c1:cap) (c2:cap) = 
   match c1, c2 with
   |(a,b) when a = b -> a
   (* drop write *)
@@ -349,7 +411,7 @@ let reconcile_write c1 c2 =
   |(a,"NONE") -> c_none
   |_ -> c_none
 
-let reconcile_caps (r1, w1) (r2, w2) k1 k2 = 
+let reconcile_caps (r1, w1) (r2, w2) (k1:CapSet.t) (k2:CapSet.t) = 
   (reconcile_read r1 r2 k1 k2, reconcile_write w1 w2)
 
 (* check if read capability (RHS) and write capability (LHS) matches *)

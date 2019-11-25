@@ -45,13 +45,13 @@ let eval_checkval = [
   ("let x = 1 in let y = 5 in y = x; y+y", V_int(2));
   ("let x = 0 in let y = 0 in y = x; y = 100; x", V_int(0));
   ("let x = 0 in let y = 0 in y = x; y = 100; y", V_int(100));
-  ("class C {mut a : int}; let x = C(1) in (x.a = 3; x.a)", V_int(3));
-  ("class C {mut a : int}; let x = C(1) in let y = C(2) in (y.a = x.a; x.a = 3; x.a)", V_int(3));
-  ("class C {mut a : int}; let x = C(1) in let y = C(2) in (y.a = x.a; x.a = 3; y.a)", V_int(1));
+  ("class C {mut a : int}; let c = 1 in let x = C(capof(c),c) in (x.a = 3; x.a)", V_int(3));
+  ("class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y.a = x.a; x.a = 3; x.a)", V_int(3));
+  ("class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y.a = x.a; x.a = 3; y.a)", V_int(1));
   ("let x = 1 in x = x;x", V_int(1));
-  ("class C {mut a : int}; let x = C(1) in x.a = x.a;x.a", V_int(1));
+  ("class C {mut a : int}; let c = 1 in let x = C(capof(c),c) in x.a = x.a;x.a", V_int(1));
   ("let x = 1 in let y = 5 in y = x + y; y+x", V_int(7));
-  ("class C {mut a : int}; let x = C(1) in let y = C(2) in (y.a = x.a; y.a)", V_int(1));
+  ("class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y.a = x.a; y.a)", V_int(1));
   ("let x = 1 in let y = 5 in (destroy(x);y)", V_int(5));
   ("let x = 1 in let y = x in (destroy(x);y)", V_int(1));
   ("let x = true in if x { !x } else { x }", V_bool(false));
@@ -59,54 +59,55 @@ let eval_checkval = [
   ("let x = 1 in let y = 0 in branch x {x}; y", V_int(0));
   ("let x = 1 in while (x > 0) {x = x - 1}; x", V_int(0));
   ("let x = 3 in while (x > 0) {x = x - 1}; x", V_int(0));
-  ("class C {mut a : int}; let x = C(3) in while (x.a > 0) {x.a = x.a - 1}; x.a", V_int(0));
-  ("class C {mut a : bool}; let x = C(false) in let y = 0 in while (x.a) {y = 1}; y", V_int(0));
+  ("class C {mut a : int}; let c = 3 in let x = C(capof(c),3) in while (x.a > 0) {x.a = x.a - 1}; x.a", V_int(0));
+  ("class C {mut a : bool}; let c = false in let x = C(capof(c),false) in let y = 0 in while (x.a) {y = 1}; y", V_int(0));
   ("let x = 3 in let y = 0 in while (x > 0) {y = y + x; x = x - 1}; y", V_int(6));
   ("let x = 3 in let y = 0 in while (x > 1) {y = y + x; x = x - 1}; y", V_int(5));
-  ("class C {mut a : int, mut b : int}; let x = C(1,2) in destroy(x.a)", V_unit);
-  ("let a = 1 in let f = fun (a | x : int)->int { x } in f(a)", V_int(1));
-  ("let x = 1 in let f = fun (x | x : int)->int { x = 2; 10 } in f(a); x", V_int(1));
-  ("let a = 1 in let f = fun (a | x : int)->int { x+1 } in f(a)", V_int(2));
-  ("let a = 1 in let f = fun (a | x : int)->int { x+1 } in a = f(a); a", V_int(2));
-  ("let a = 1 in let f = fun (a | x : int)->unit { x = 0 } in f(a); a", V_int(1));
-  ("let a = 1 in let f = fun (a | x : int)->int { x = 0; x } in f(a)", V_int(0));
-  ("let a = 1 in let f = fun (a | x : int)->int { x = 0; x } in f(a); a", V_int(1));
-  ("let a = 1 in let f = fun (a | x : int)->int { x = 0; x } in a = f(a); a", V_int(0));
+  ("class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c, c) in destroy(x.a)", V_unit);
+  ("let a = 1 in let f = fun (a | x : a int)->int { x } in f(capof(a),a)", V_int(1));
+  ("let a = 1 in let f = fun (a | x : a int)->int { x = 2; 10 } in f(capof(a),a); a", V_int(1));
+  ("let a = 1 in let f = fun (a | x : a int)->int { x+1 } in f(capof(a),a)", V_int(2));
+  ("let a = 1 in let f = fun (a | x : a int)->int { x+1 } in a = f(capof(a),a); a", V_int(2));
+  ("let a = 1 in let f = fun (a | x : a int)->unit { x = 0 } in f(capof(a),a); a", V_int(1));
+  ("let a = 1 in let f = fun (a | x : a int)->int { x = 0; x } in f(capof(a),a)", V_int(0));
+  ("let a = 1 in let f = fun (a | x : a int)->int { x = 0; x } in f(capof(a),a); a", V_int(1));
+  ("let a = 1 in let f = fun (a | x : a int)->int { x = 0; x } in a = f(capof(a),a); a", V_int(0));
   (* TODO mutable object == consumes cap? *)
-  ("class C {mut a : int}; let x = C(1) in x; x.a", V_int(1));
-  ("class C {mut a : int}; let x = C(1) in x.a; x.a", V_int(1));
-  ("class C {mut a : int}; let x = C(1) in let y = C(2) in (y.a = x.a; x.a)", V_int(1));
-  ("class C {mut a : int}; let x = C(1) in let y = C(2) in (y.a = x.a; x.a = 0; y.a)", V_int(1));
-  ("class C {mut a : int}; let x = C(1) in let y = C(2) in (y = x; x.a = 0; y.a)", V_int(0));
-  ("class C {mut a : int}; let x = C(1) in let y = C(2) in (y = x; x.a = 0; x.a)", V_int(0));
-  ("class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->C { a } in f(x);x.a", V_int(2));
-  ("class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->int { a.a } in f(x)", V_int(2));
-  ("class C {mut a : int}; let f = fun (| a : int)->C { C(a) } in (f(1)).a", V_int(1));
-  ("class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->int { let y = a.a in y } in f(x)", V_int(2));
-  ("class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->C { let y = a in y } in (f(x)).a", V_int(2));
-  ("class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->C { a } in (f(x)).a", V_int(2));  
-  ("class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->C { let y = a in y } in let z = f(x) in z.a", V_int(2));
-  ("class C {a : int}; let x = C(2) in let f = fun (x | z : int)->int { z = z + 1; z } in f(x.a)", V_int(3));
-  ("class C {a : int}; let x = C(2) in let f = fun (x | z : int)->int { z = z + 1; z } in f(x.a); x.a", V_int(2));
-  ("class C {a : int}; let x = C(2) in let f = fun (x | z : int)->int { z = z + 1; z } in f(x.a)", V_int(3));
+  ("class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in x; x.a", V_int(1));
+  ("class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in x.a; x.a", V_int(1));
+  ("class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y.a = x.a; x.a)", V_int(1));
+  ("class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y.a = x.a; x.a = 0; y.a)", V_int(1));
+  ("class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y = x; x.a = 0; y.a)", V_int(0));
+  ("class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y = x; x.a = 0; x.a)", V_int(0));
+  ("class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { a } in f(capof(x),x);x.a", V_int(2));
+  ("class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->int { a.a } in f(capof(x),x)", V_int(2));
+  ("class C {mut a : int}; let c = 1 in let f = fun (x| a : x int)->C { C(a) } in (f(capof(c), c)).a", V_int(1));
+  ("class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->int { let y = a.a in y } in f(capof(x),x)", V_int(2));
+  ("class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { let y = a in y } in (f(capof(x),x)).a", V_int(2));
+  ("class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { a } in (f(capof(x),x)).a", V_int(2));  
+  ("class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { let y = a in y } in let z = f(capof(x),x) in z.a", V_int(2));
+  ("class C {a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | z : x int)->int { z = z + 1; z } in f(capof(x),x.a)", V_int(3));
+  ("class C {a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | z : x int)->int { z = z + 1; z } in f(capof(x),x.a); x.a", V_int(2));
+  ("class C {a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | z : x int)->int { z = z + 1; z } in f(capof(x),x.a)", V_int(3));
   (* does cap for x get consumed, since it has a mut field? *)
-  ("class C {a : int}; let x = C(2) in let f = fun (x | z : int)->int { z = z + 1; z } in f(x.a); x.a", V_int(2));
-  ("class C {a : int}; let x = C(2) in let f = fun (x | z : int)->int { z = z + 1; z } in f(x.a); x.a", V_int(2));
+  ("class C {a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | z : x int)->int { z = z + 1; z } in f(capof(x),x.a); x.a", V_int(2));
+  ("class C {a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | z : x int)->int { z = z + 1; z } in f(capof(x),x.a); x.a", V_int(2));
   ("class C {mut a : int}", V_unit);
-  ("class C {mut a : int}; let x = C(1) in x.a", V_int(1));
-  ("class C {mut a : int}; class C2 extends C {mut b : int};let x = C2(1,2) in x.b", V_int(2));
-  ("class C {mut a : int}; class C2 extends C {mut b : int};let x = C2(1,2) in x.a", V_int(1));
-  ("class C {mut a : int}; class C2 extends C {mut b : int};let x = C2(1,2) in let f = fun (x | a : C)->int { a.a } in f(x)", V_int(1));
-  ("class C {mut a : int}; class C2 {o : C};let x = C(1) in let y = C2(x) in y.o.a", V_int(1));
-  ("class C {mut a : int}; class C2 {o : C};let x = C(1) in let y = C2(x) in y.o.a = 0; y.o.a", V_int(1))
+  ("class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in x.a", V_int(1));
+  ("class C {mut a : int}; class C2 extends C {mut b : int}; let c = 1 in let x = C2(capof(c),c,2) in x.b", V_int(2));
+  ("class C {mut a : int}; class C2 extends C {mut b : int}; let c = 1 in let x = C2(capof(c),c,2) in x.a", V_int(1));
+  ("class C {mut a : int}; class C2 extends C {mut b : int}; let c = 1 in let x = C2(capof(c),c,2) in let f = fun (x | a : x C)->int { a.a } in f(capof(x), x)", V_int(1));
+  ("class C {mut a : int}; class C2 {o : C};let c = 1 in let x = C(capof(c), c) in let y = C2(capof(x), x) in y.o.a", V_int(1));
+  ("class C {mut a : int}; class C2 {o : C};let c = 1 in let x = C(capof(c), c) in let y = C2(capof(x), x) in y.o.a = 0; y.o.a", V_int(1));
+  ("let x = 1 in destroy(x); x = 3; x", V_int(3))
 ]
 
 (* check that evaluation succeeded *)
 let eval_success = [
-  "class C {mut a : int}; let x = C(1) in let y = C(2) in (y.a = x.a; y)";
-  "class C {mut a : int}; let x = C(1) in let y = C(2) in (y = x; y)";
-  "class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->C { a } in f(x)";
-  "class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->C { let y = a in y } in f(x)";
+  "class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y.a = x.a; y)";
+  "class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y = x; y)";
+  "class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { a } in f(capof(x), x)";
+  "class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { let y = a in y } in f(capof(x), x)";
 ]
 
 (* check that evaluation failed *)
@@ -114,11 +115,11 @@ let eval_failure = [
   "let x = 1 in (destroy(x);destroy(x))";
   "let x = 1 in (destroy(x);x)";
   "let x = 1 in branch x {x}; x";
-  "class C {mut a : int, mut b : int}; let x = C(1,2) in destroy(x.a);x.b";
-  "let a = 1 in let f = fun (a | x : int)->int { x } in destroy(a);f(a)";
-  "let a = 1 in let f = fun (a | x : int)->unit { destroy(x) } in f(a);a";
-  "class C {mut a : int}; let x = C(2) in let f = fun (x | a : C)->C { let y = a in y } in let z = f(x) in x";
-  "class C {mut a : int}; class C2 {o : C};let x = C(1) in let z = C(2) in let y = C2(x) in y.o = z"
+  "class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c,2) in destroy(x.a);x.b";
+  "let a = 1 in let f = fun (a | x : a int)->int { x } in destroy(a);f(capof(a), a)";
+  "let a = 1 in let f = fun (a | x : a int)->unit { destroy(x) } in f(capof(a),a);a";
+  "class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { let y = a in y } in let z = f(capof(x), x) in x";
+  "class C {mut a : int}; class C2 {o : C};let c = 1 in let d = 2 in let x = C(capof(c), c) in let x = C(capof(d), d) in let y = C2(capof(x), x) in y.o = z"
 ]
 
 let run_tests = fun () -> 

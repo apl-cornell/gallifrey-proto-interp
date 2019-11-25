@@ -1,1 +1,1 @@
-(fun (x | x:x int, y:x int) (a| b:x int, c:a int)  (a| d:a int, e:a int)  -> int { x }) (x) (y) (z)
+let x = 1 in let y = 5 in y = x; y+y

@@ -23,13 +23,13 @@ let rec fmt_ast n c =
   |Seq(e1, e2) -> sp "%s;\n%s" (fmt_ast n e1) (fmt_ast n e2)
   |If(c, e1, e2) -> sp "%sif (%s) {\n%s\n} else {\n%s\n}" (space n) (fmt_ast 0 c) (fmt_ast (n+2) e1) (fmt_ast (n+2) e2)
   |While(c, e) -> sp "%swhile (%s) {\n%s\n}" (space n) (fmt_ast 0 c) (fmt_ast (n+2) e)
-  |Let(v, e1, e2) -> sp "%slet %s := %s in %s" (space n) v (fmt_ast 0 e1) (fmt_ast 0 e2)
+  |Let(v, e1, e2) -> sp "%slet %s = %s in %s" (space n) v (fmt_ast 0 e1) (fmt_ast 0 e2)
   |Destroy e -> sp "destroy(%s)" (fmt_ast 0 e)
   |Sleep e -> sp "sleep(%s)" (fmt_ast 0 e)
   |Capof e -> sp "capof(%s)" (fmt_ast 0 e)
   |Branch(v,e) -> sp "%sbranch" (space n)
   |Focus(v, e2) -> sp "%sfocus %s {\n%s\n}" (space n) (v) (fmt_ast (n+2) e2)
-  |Assign(e1, e2) -> sp "%s%s := %s" (space n) (fmt_ast 0 e1) (fmt_ast 0 e2)
+  |Assign(e1, e2) -> sp "%s%s = %s" (space n) (fmt_ast 0 e1) (fmt_ast 0 e2)
   |Neg e -> sp "-%s" (fmt_ast 0 e)
   |Not e -> sp "!%s" (fmt_ast 0 e)
   |Class(c,t,super) -> sp "%sclass %s%s {%s}" (space n) c (match super with Some s -> " extends "^s | None -> "") "<object>"
@@ -55,7 +55,7 @@ and fmt_value v =
   |V_obj(c,o) -> "object<>"
   |V_fun(params, rtype, body, env) -> sp "fun<(%s)->%s {\n%s\n}>" (fmt_list fmt_param params) (fmt_type rtype) (fmt_ast 0 body)
   |V_ptr(l,l',m,t) -> sp "pointer<%d, %d, %s, %s>" l l' (if m = MUT then "mut" else "immut") (fmt_type t)
-  |V_cap c -> "cap<c>"
+  |V_cap c  -> sp "cap<%s>" c
 and fmt_type t = 
   match t with
   | T_unit -> "unit"

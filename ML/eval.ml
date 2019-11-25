@@ -215,7 +215,8 @@ and eval_apply st func args =
             match param, h2 with 
             |Lambda(n,cap,t),(v,c) -> begin
                 g_assert (State.is_subtype st (get_type v) t) "argument does not match param type";
-                g_assert (cap = c) ("argument does not match required cap: expected "^cap^" got "^c);
+                let c = check_write cap c st.k in
+                (* g_assert (cap = c) ("argument does not match required cap: expected "^cap^" got "^c); *)
                 fold_args t1 t2 ((n,v,c)::acc)
               end
             |KappaLambda meta, (V_cap cap, c) -> 
@@ -377,11 +378,13 @@ and eval_let st x e1 e2 =
 and eval_assign st e1 e2 = 
   (* this needs another looking-at *)
   let v1, (r1, w1), k', pl = eval st e1 |> autoclone st in
-  let st' = {st with k = pl} in
-  let v2, (r2, w2), k'', pr = eval st' e2 |> autoclone st' in
-  let c = check_write w1 r1 st'.k in
-  let k' = CapSet.add k'' w2 in
-  let k', p = CapSet.remove k' c, CapSet.add pr c in
+  let st = {st with k = pl} in
+  let v2, (r2, w2), k'', pr = eval st e2 |> autoclone st in
+  let c = check_write w1 r1 st.k in
+  (* move w2 to k' if mutable, p if not *)
+  let k' = if State.is_mutable st v2 then CapSet.add k'' w2 else CapSet.remove k'' w2 in
+  let p = if State.is_mutable st v2 then CapSet.remove pr w2 else CapSet.add pr w2 in
+  let k', p = CapSet.remove k' c, CapSet.add p c in
   (match (v1, v2) with
    (* aliasing *)
    |V_ptr(l1,l1',m1,t1), V_ptr(l2,l2',m2,t2) -> begin
@@ -398,6 +401,7 @@ and eval_assign st e1 e2 =
    (* assigning a value *)
    |V_ptr(l,l',m,t), v -> begin
        g_assert (State.is_subtype st (get_type v) t) "types do not match";
+       g_assert (m = MUT) "LHS is not mutable";
        g_assert (CapSet.mem k' c |> not) "c in k'";
        Hashtbl.set st.mem l' v
      end

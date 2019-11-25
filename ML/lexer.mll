@@ -79,6 +79,7 @@ rule token = parse
 | "in"    { IN(info lexbuf) }
 | "branch"    { BRANCH(info lexbuf) }
 | "destroy"    { DESTROY(info lexbuf) }
+| "capof"    { CAPOF(info lexbuf) }
 | "sleep"    { SLEEP(info lexbuf) }
 | "focus"    { FOCUS(info lexbuf) }
 | "U"    { U(info lexbuf) }
