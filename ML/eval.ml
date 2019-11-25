@@ -214,7 +214,7 @@ and eval_apply st func args =
         |param::t1, h2::t2 -> begin
             match param, h2 with 
             |Lambda(n,cap,t),(v,c) -> begin
-                g_assert (State.is_subtype st (get_type v) t) "argument does not match param type";
+                g_assert (State.is_subtype st (get_type v) t) ("expected " ^ (fmt_type t) ^ " argument, got " ^ (get_type v |> fmt_type));
                 let c = check_write cap c st.k in
                 (* g_assert (cap = c) ("argument does not match required cap: expected "^cap^" got "^c); *)
                 fold_args t1 t2 ((n,v,c)::acc)
@@ -222,7 +222,7 @@ and eval_apply st func args =
             |KappaLambda meta, (V_cap cap, c) -> 
               let new_params = substitute_cap meta cap t1 in
               fold_args new_params t2 acc
-            |KappaLambda meta, _ -> raise (GError "kappa argument does not match param type")
+            |KappaLambda meta, (v,_) -> raise (GError ("expected capability argument, got " ^ (get_type v |> fmt_type)))
             |SigmaLambda(n,meta,t),(v,c) -> begin
                 let (focus_cap, focus_t, focus_loc) = List.hd_exn st.focus in
                 g_assert (State.eq_types st (get_type v) t) "sigma argument does not match param type";
@@ -389,7 +389,7 @@ and eval_assign st e1 e2 =
    (* aliasing *)
    |V_ptr(l1,l1',m1,t1), V_ptr(l2,l2',m2,t2) -> begin
        let v_right = State.get_mem st l2' in
-       g_assert (State.is_subtype st t2 t1) "types do not match";
+       g_assert (State.is_subtype st t2 t1) ("types do not match: expected " ^ (fmt_type t1) ^ " got " ^ (fmt_type t2));
        g_assert (m1 = MUT) "LHS is not mutable";
        g_assert (CapSet.mem k' c |> not) "c in k'";
        (* if RHS is mutable *)
@@ -400,7 +400,7 @@ and eval_assign st e1 e2 =
      end
    (* assigning a value *)
    |V_ptr(l,l',m,t), v -> begin
-       g_assert (State.is_subtype st (get_type v) t) "types do not match";
+       g_assert (State.is_subtype st (get_type v) t) ("types do not match: expected " ^ (fmt_type t) ^ " got " ^ (get_type v |> fmt_type));
        g_assert (m = MUT) "LHS is not mutable";
        g_assert (CapSet.mem k' c |> not) "c in k'";
        Hashtbl.set st.mem l' v

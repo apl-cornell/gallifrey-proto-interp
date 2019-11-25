@@ -81,11 +81,11 @@ let eval_checkval = [
   ("let a = 1 in let f = fun (a | x : a int, y: a int)->int { x + y } in f(capof(a), a, a)", V_int(2));
   ("let a = 1 in let f = fun (a | x : a int)->int { x = 2; 10 } in f(capof(a),a); a", V_int(1));
   ("let a = 1 in let f = fun (a | x : a int)->int { x+1 } in f(capof(a),a)", V_int(2));
-  ("let a = 1 in let f = fun (a | x : a int)->int { x+1 } in a = f(capof(a),a); a", V_int(2));
+  ("let a = 1 in let f = fun (a | x : a int)->int { x+1 } in let b = f(capof(a),a) in b", V_int(2));
   ("let a = 1 in let f = fun (a | x : a int)->unit { x = 0 } in f(capof(a),a); a", V_int(1));
   ("let a = 1 in let f = fun (a | x : a int)->int { x = 0; x } in f(capof(a),a)", V_int(0));
   ("let a = 1 in let f = fun (a | x : a int)->int { x = 0; x } in f(capof(a),a); a", V_int(1));
-  ("let a = 1 in let f = fun (a | x : a int)->int { x = 0; x } in a = f(capof(a),a); a", V_int(0));
+  ("let a = 1 in let f = fun (a | x : a int)->int { x = 0; x } in let b = f(capof(a),a) in b", V_int(0));
   (* TODO mutable object == consumes cap? *)
   ("class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in x; x.a", V_int(1));
   ("class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in x.a; x.a", V_int(1));
@@ -95,7 +95,7 @@ let eval_checkval = [
   ("class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y = x; x.a = 0; x.a)", V_int(0));
   ("class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { a } in f(capof(x),x);x.a", V_int(2));
   ("class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->int { a.a } in f(capof(x),x)", V_int(2));
-  ("class C {mut a : int}; let c = 1 in let f = fun (x| a : x int)->C { C(a) } in (f(capof(c), c)).a", V_int(1));
+  ("class C {mut a : int}; let c = 1 in let f = fun (x| a : x int)->C { C(capof(a), a) } in (f(capof(c), c)).a", V_int(1));
   ("class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->int { let y = a.a in y } in f(capof(x),x)", V_int(2));
   ("class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { let y = a in y } in (f(capof(x),x)).a", V_int(2));
   ("class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { a } in (f(capof(x),x)).a", V_int(2));  
@@ -118,6 +118,8 @@ let eval_checkval = [
   ("class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c, c) in x.a", V_int(1));
   ("class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c, c) in x.b", V_int(1));
   ("class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c, c) in x.b; x.a", V_int(1));
+  ("class C {mut U a : int, mut U b : int}; let c = 1 in let d = 2 in let x = C(capof(c), c, capof(d), d) in focus x { destroy(x.a); x.b }", V_int(2));
+  ("class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in focus x { destroy(x) }", V_unit);
 ]
 
 (* check that evaluation succeeded *)
@@ -147,6 +149,11 @@ let eval_failure = [
   "let x = 1 in x(1)";
   "3 = 2";
   "class C {mut a : int}; let x = 1 in let y = C2(capof(x), x) in y";
+  "let x = 1 in focus x { 1 }";
+  "class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in destroy(x); x";
+  "class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in destroy(x.a); x";
+  "class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in focus x { destroy(x) }; x";
+  "class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in focus x { destroy(x.a) }; x";
 ]
 
 let run_tests = fun () -> 
