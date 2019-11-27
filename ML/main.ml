@@ -18,8 +18,9 @@ let () =
           (Lexing.lexeme_end lexbuf - !Lexer.linestart - 1);
         exit 1 
     in 
-    print_endline (fmt_ast 0 ast);
+    (* print_endline (fmt_ast 0 ast); *)
     let st = Eval.init_state () in
-    let res, _, _, _ = Eval.eval st ast in
+    let res, (r,_), _, _ = Eval.eval st ast in
+    g_assert (res = V_unit || r <> c_none) "cannot read evaluation result";
     let res = State.deref st res |> State.deref st in
     print_endline (Pprint.fmt_value res)

@@ -21,8 +21,9 @@ let rec eval (st:State.t) (exp:expr): result =
         g_assert (State.has_cap st c) ("no capability " ^ c); 
         let k' = CapSet.singleton c in
         let p = CapSet.remove st.k c in
+        let rcap = if Hash_set.mem st.destroyed c then c_none else c in
         (* framing; P is K\c *)
-        State.get_mem st loc, (c, c), k', p
+        State.get_mem st loc, (rcap, c), k', p
       end
     |Binary(op, e1, e2) -> eval_binop st op e1 e2
     |Fun(params, rtype, body) -> begin
@@ -67,7 +68,7 @@ let rec eval (st:State.t) (exp:expr): result =
         eval st' e2
       end
     |If(c, e1, e2) -> begin
-        let v, (r, w), k', p = eval st c |> autoclone st in
+        let v, (r, w), k', p = eval st c |> autoclone_imm st in
         let st' = State.enter_scope {st with k = p} in
         match State.deref st v with
         |V_bool b -> begin
@@ -77,7 +78,7 @@ let rec eval (st:State.t) (exp:expr): result =
         |_ -> raise (GError "condition needs to be boolean")
       end
     |While(c, e) -> begin
-        let v, (r, w), k', p = eval st c |> autoclone st in
+        let v, (r, w), k', p = eval st c |> autoclone_imm st in
         let st' = State.enter_scope {st with k = p} in
         match State.deref st v with
         |V_bool b -> begin
@@ -93,7 +94,9 @@ let rec eval (st:State.t) (exp:expr): result =
         (* read cap for whatever was evaluated is destroyed *)
         let v, (r, w), k', p = eval st e |> autoclone st in
         (* remove w from p, frame *)
-        let p = CapSet.diff (CapSet.union p st.k) (CapSet.add k' w) in
+        Hash_set.add st.destroyed w;
+        let p = CapSet.diff (CapSet.union p st.k) k' in
+        (* let p = CapSet.diff (CapSet.union p st.k) (CapSet.add k' w) in *)
         V_unit, (c_none, c_none), CapSet.empty, p
       end
     |Sleep e -> begin
@@ -141,13 +144,13 @@ let rec eval (st:State.t) (exp:expr): result =
       end
     |Assign(e1, e2) -> eval_assign st e1 e2
     |Neg e -> begin
-        let v, (r, w), k', p = eval st e |> autoclone st in
+        let v, (r, w), k', p = eval st e |> autoclone_imm st in
         match State.deref st v with
         | V_int i -> V_int(-1 * i), (r, w), CapSet.empty, p
         | _ -> raise (GError "expected int for integer negation")
       end
     |Not e -> begin
-        let v, (r, w), k', p = eval st e |> autoclone st in
+        let v, (r, w), k', p = eval st e |> autoclone_imm st in
         match State.deref st v with
         | V_bool i -> V_bool(not i), (r, w), CapSet.empty, p
         | _ -> raise (GError "expected bool for boolean negation")
@@ -158,9 +161,9 @@ let rec eval (st:State.t) (exp:expr): result =
 
 and eval_binop st bop e1 e2 = 
   (* throw away K' and K'', no caps check atm *)
-  let v1, (r1, w1), k', pl = eval st e1 |> autoclone st in
+  let v1, (r1, w1), k', pl = eval st e1 |> autoclone_imm st in
   let st' = {st with k = pl} in
-  let v2, (r2, w2), k'', pr = eval st' e2 |> autoclone st' in
+  let v2, (r2, w2), k'', pr = eval st' e2 |> autoclone_imm st' in
   let v' = match (bop, State.deref st v1, State.deref st v2) with
     | (BinopAnd, V_bool b1, V_bool b2) -> V_bool(b1 && b2)
     | (BinopOr, V_bool b1, V_bool b2) -> V_bool(b1 || b2)
@@ -177,13 +180,13 @@ and eval_binop st bop e1 e2 =
     | (BinopEq, _, _) -> V_bool(v1 = v2)
     |_ -> raise (GError "invalid binop")
   in
-  let cr, cw = reconcile_caps (r1, w1) (r2, w2) k' k'' in
+  let cr, cw = reconcile_caps (r1, w1) (r2, w2) pl pr in
   let result = v', (cr, cw), CapSet.empty, pr in
   State.validate_result st result
 
 (* FUNCTION APPLICATION *)
 and eval_apply st func args = 
-  let v, (r, w), k', p = eval st func |> autoclone st in
+  let v, (r, w), k', p = eval st func |> autoclone_imm st in
   match State.deref st v with
   |V_fun(params, rtype, body, store) -> begin
       (* helper function for evaluating a single argument *)
@@ -376,11 +379,11 @@ and eval_let st x e1 e2 =
     end
 
 and eval_assign st e1 e2 = 
-  (* this needs another looking-at *)
   let v1, (r1, w1), k', pl = eval st e1 |> autoclone st in
   let st = {st with k = pl} in
   let v2, (r2, w2), k'', pr = eval st e2 |> autoclone st in
-  let c = check_write w1 r1 st.k in
+  (* TODO check this! *)
+  let c = check_write w1 r2 st.k in
   (* move w2 to k' if mutable, p if not *)
   let k' = if State.is_mutable st v2 then CapSet.add k'' w2 else CapSet.remove k'' w2 in
   let p = if State.is_mutable st v2 then CapSet.remove pr w2 else CapSet.add pr w2 in

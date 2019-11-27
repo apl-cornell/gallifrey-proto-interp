@@ -14,8 +14,8 @@ let eval_test s =
       exit 1 
   in 
   let st = Eval.init_state () in
-  (* print_endline (string_of_int !(st.counter)); *)
-  let res, _, _, _ = Eval.eval st ast in
+  let res, (r,_), _, _ = Eval.eval st ast in
+  g_assert (res = V_unit || r <> c_none) "cannot read evaluation result";
   res,st
 
 (* check for equality between values (dereferencing pointers) *)

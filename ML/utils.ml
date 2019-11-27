@@ -3,10 +3,10 @@ include Ast
 
 (* Interpreter exceptions. *)
 (* exception UnboundVariable of var
-exception TypeError of string
-exception NameError of string
-exception UnboundFieldError of string
-exception ResourceDestroyedError of string *)
+   exception TypeError of string
+   exception NameError of string
+   exception UnboundFieldError of string
+   exception ResourceDestroyedError of string *)
 exception GError of string
 
 (* module StringSet = Set.Make(String) *)
@@ -188,6 +188,7 @@ module State = struct
     classes: classes list; (* unsure about this one *)
     mem: memory;
     counter: int ref;
+    destroyed: (string) Hash_set.t
   }
 
   let init = fun () -> 
@@ -198,6 +199,7 @@ module State = struct
       classes = [Hashtbl.create (module String)];
       mem = Hashtbl.create (module Int);
       counter = ref 0;
+      destroyed = (Hash_set.create (module String) ())
     }
 
   (* simple runtime validations to aid debugging *)
@@ -428,6 +430,10 @@ let check_write w r k =
 let autoclone (st:State.t) (v, (r,w), k', p) = 
   let k', p = if State.is_mutable st v then k', p 
     else CapSet.empty, CapSet.union k' p in
+  v,(r,w),k',p
+
+let autoclone_imm (st:State.t) (v, (r,w), k', p) = 
+  let k', p = CapSet.empty, CapSet.union k' p in
   v,(r,w),k',p
 
 let unit_coerce (st:State.t) (v, (r,w), k', p) = 
