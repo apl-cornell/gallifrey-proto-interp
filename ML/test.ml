@@ -15,7 +15,6 @@ let eval_test s =
   in 
   let st = Eval.init_state () in
   let res, (r,_), _, _ = Eval.eval st ast in
-  g_assert (res = V_unit || r <> c_none) "cannot read evaluation result";
   res,st
 
 (* check for equality between values (dereferencing pointers) *)
@@ -39,6 +38,7 @@ let rec compare_values st a b =
 let eval_checkval = [
   ("true & false", V_bool(false));
   ("true | false", V_bool(true));
+  ("false | false", V_bool(false));
   ("10 * 2", V_int(20));
   ("10 / 2", V_int(5));
   ("10 % 7", V_int(3));
@@ -119,7 +119,7 @@ let eval_checkval = [
   ("class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c, c) in x.b", V_int(1));
   ("class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c, c) in x.b; x.a", V_int(1));
   ("class C {mut U a : int, mut U b : int}; let c = 1 in let d = 2 in let x = C(capof(c), c, capof(d), d) in focus x { destroy(x.a); x.b }", V_int(2));
-  ("class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in focus x { destroy(x) }", V_unit);
+  (* ("class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in focus x { destroy(x) }", V_unit); *)
 ]
 
 (* check that evaluation succeeded *)
@@ -128,17 +128,17 @@ let eval_success = [
   "class C {mut a : int}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in (y = x; y)";
   "class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { a } in f(capof(x), x)";
   "class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { let y = a in y } in f(capof(x), x)";
-  "sleep(0)";
+  "sleep(0)"
 ]
 
 (* check that evaluation failed *)
 let eval_failure = [
   "let x = 1 in (destroy(x);destroy(x))";
-  "let x = 1 in (destroy(x);x)";
-  "let x = 1 in branch x {x}; x";
-  "class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c, c) in destroy(x.a);x.b";
+  "let x = 1 in (destroy(x); (x + 1))";
+  "let x = 1 in branch x {x}; x + 1";
+  "class C {mut a : int, mut b : int}; let c = 1 in let x = C(capof(c), c, c) in destroy(x.a); (x.b + 1)";
   "let a = 1 in let f = fun (a | x : a int)->int { x } in destroy(a);f(capof(a), a)";
-  "let a = 1 in let f = fun (a | x : a int)->unit { destroy(x) } in f(capof(a),a);a";
+  "let a = 1 in let f = fun (a | x : a int)->unit { destroy(x) } in f(capof(a),a); (a + 1)";
   "class C {mut a : int}; let c = 2 in let x = C(capof(c), c) in let f = fun (x | a : x C)->C { let y = a in y } in let z = f(capof(x), x) in x";
   "class C {mut a : int}; class C2 {o : C};let c = 1 in let d = 2 in let x = C(capof(c), c) in let x = C(capof(d), d) in let y = C2(capof(x), x) in y.o = z";
   "let x = 3 in sleep(x)";
@@ -150,10 +150,10 @@ let eval_failure = [
   "3 = 2";
   "class C {mut a : int}; let x = 1 in let y = C2(capof(x), x) in y";
   "let x = 1 in focus x { 1 }";
-  "class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in destroy(x); x";
-  "class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in destroy(x.a); x";
-  "class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in focus x { destroy(x) }; x";
-  "class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in focus x { destroy(x.a) }; x";
+  "class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in destroy(x); x + 1";
+  "class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in destroy(x.a); x + 1";
+  "class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in focus x { destroy(x) }; x + 1";
+  "class C {mut U a : int}; let c = 1 in let x = C(capof(c), c) in focus x { destroy(x.a) }; x + 1"
 ]
 
 let run_tests = fun () -> 

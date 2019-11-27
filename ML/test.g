@@ -1,1 +1,1 @@
-let x = 1 in let y = 5 in y = x + y; y
+let x = 1 in (destroy(x); let y = x in y)

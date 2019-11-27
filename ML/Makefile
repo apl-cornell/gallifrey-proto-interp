@@ -11,4 +11,4 @@ test:
 	ocamlbuild -tag 'debug' -use-ocamlfind -pkgs core -tag thread main.native ; mv main.native gallifrey; ./gallifrey -test
 
 report:
-	bisect-ppx-report -html _coverage/ -I _build/ coverage*.out; open _coverage/index.html
+	bisect-ppx-report -html _coverage/ -I _build/ bisect*.out; open _coverage/index.html

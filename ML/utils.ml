@@ -9,67 +9,48 @@ include Ast
    exception ResourceDestroyedError of string *)
 exception GError of string
 
-(* module StringSet = Set.Make(String) *)
 let c_any = "ANY"
 let c_none = "NONE"
 
-(* module CapSet = struct 
-   type t = StringSet.t
-
-   let empty = StringSet.empty
-
-   let add set elt = 
-    if elt <> c_any && elt <> c_none then
-      StringSet.add set elt
-    else set
-
-   let remove = StringSet.remove
-
-   let inter = StringSet.inter
-
-   let union = StringSet.union
-
-   let diff = StringSet.diff
-
-   let to_list = StringSet.to_list
-
-   let of_list = StringSet.of_list
-
-   let singleton elt = 
-    if elt <> c_any && elt <> c_none then StringSet.singleton elt
-    else StringSet.empty
-
-   let mem = StringSet.mem
-
-   let length = StringSet.length
-   end *)
-
 module CapSet = struct 
-  type t = cap list
+  type t = (cap * bool) list
 
-  let empty = []
+  let empty:t = []
 
-  let mem set elt = List.mem set elt (=)
+  let mem (set:t) elt = List.mem set elt (=)
 
-  let add set elt = 
-    if elt <> c_any && elt <> c_none && (mem set elt |> not) then
+  let has_name (set:t) name =
+    match List.filter set (fun (n,_) -> n = name) with
+    |h::t -> true
+    |_ -> false
+
+  let add (set:t) elt = 
+    let n = fst elt in
+    if n <> c_any && n <> c_none && (mem set elt |> not) then
       elt::set
     else set
 
-  let remove set elt = List.filter set (fun e -> e <> elt)
+  let remove (set:t) elt = List.filter set (fun e -> e <> elt)
 
-  let inter s1 s2 = List.filter s1 (fun e -> mem s2 e)
+  let remove_name (set:t) name = List.filter set (fun (n,_) -> n <> name)
 
-  let union s1 s2 = List.dedup_and_sort ~compare:(Pervasives.compare) (s1 @ s2)
+  let inter (s1:t) (s2:t) = List.filter s1 (fun e -> mem s2 e)
 
-  let diff s1 s2 = List.filter s1 (fun e -> mem s2 e |> not)
+  let union (s1:t) (s2:t) = List.dedup_and_sort ~compare:(Pervasives.compare) (s1 @ s2)
 
-  let to_list x = x
+  let diff (s1:t) (s2:t) = List.filter s1 (fun e -> mem s2 e |> not)
 
-  let of_list x = x
+  let invalidate (set:t) name = 
+    if mem set (name, true) then
+      (name, false) :: (remove set (name, true))
+    else set
 
-  let singleton elt = 
-    if elt <> c_any && elt <> c_none then [elt]
+  let to_list (set:t) = List.map set (fun (n,v) -> n ^ "|" ^ (string_of_bool v))
+
+  let of_list (set:t) = set
+
+  let singleton (n,v) = 
+    if n <> c_any && n <> c_none then [(n,v)]
     else []
 
   let length = List.length
@@ -188,7 +169,6 @@ module State = struct
     classes: classes list; (* unsure about this one *)
     mem: memory;
     counter: int ref;
-    destroyed: (string) Hash_set.t
   }
 
   let init = fun () -> 
@@ -199,16 +179,18 @@ module State = struct
       classes = [Hashtbl.create (module String)];
       mem = Hashtbl.create (module Int);
       counter = ref 0;
-      destroyed = (Hash_set.create (module String) ())
     }
 
   (* simple runtime validations to aid debugging *)
   let validate_result st (value, (r,w), k', p) =
-    g_assert (not (CapSet.mem k' c_any)) "c_any in k'";
-    g_assert (not (CapSet.mem k' c_none)) "c_none in k'";
-    g_assert (not (CapSet.mem p c_any)) "c_any in p";
-    g_assert (not (CapSet.mem p c_none)) "c_none in p";
+    g_assert (not (CapSet.has_name k' c_any)) "c_any in k'";
+    g_assert (not (CapSet.has_name k' c_none)) "c_none in k'";
+    g_assert (not (CapSet.has_name p c_any)) "c_any in p";
+    g_assert (not (CapSet.has_name p c_none)) "c_none in p";
     g_assert ((CapSet.inter k' p |> CapSet.length) = 0) "k' and p intersect";
+    let cap_names = (List.map k' (fun x -> fst x)) @ (List.map p (fun x -> fst x)) in
+    let deduped_names = List.dedup_and_sort (Pervasives.compare) cap_names in
+    g_assert (List.length cap_names = List.length deduped_names) "both valid and invalid version of same cap exists";
     let store_types = hashtbl_stack_vals (fun (t,_,_) -> t) st.store in
     List.iter store_types (fun t -> g_assert (t <> T_cap) "not allowed to store result of capof");
     (value, (r,w), k', p)
@@ -277,7 +259,14 @@ module State = struct
     |_ -> raise (GError "expected pointer")
 
   (* check it capability is in K *)
-  let has_cap s c = c = c_any || CapSet.mem s.k c
+  let has_cap s c = c = c_any || CapSet.mem s.k (c, true) || CapSet.mem s.k (c, false)
+
+  let focused_cap s c = 
+    match List.find s.focus (fun (cap,_,_) -> c = cap) with
+    |Some _ -> true
+    |None -> false
+
+  let valid_cap s c = c = c_any || CapSet.mem s.k (c, true) || focused_cap s c
 
   let deref s v = 
     match v with
@@ -321,14 +310,6 @@ module State = struct
     (* functions are considered immutable *)
     | V_fun(_) -> false
     |_ -> false
-
-  let rec destroy_store store cap = 
-    match store with
-    |[] -> ()
-    |h::t -> Hashtbl.filter_inplace ~f:(fun (t,c,l) -> c <> cap) h; destroy_store t cap
-
-  let destroy st cap = 
-    destroy_store st.store cap
 
   let getall_supercls st c = 
     let rec path_to_parent c = match find_cls st c with
@@ -401,8 +382,8 @@ let reconcile_read (c1:cap) (c2:cap) (k1:CapSet.t) (k2:CapSet.t) =
   |("NONE", b) -> c_none
   |(a,"NONE") -> c_none
   (* read relabel *)
-  |(a,b) -> if CapSet.mem k1 a then b 
-    else if CapSet.mem k2 b then a
+  |(a,b) -> if CapSet.mem k1 (a, true) then b 
+    else if CapSet.mem k2 (b, true) then a
     else c_none (* drop read  *)
 
 let reconcile_write (c1:cap) (c2:cap) = 
@@ -419,22 +400,22 @@ let reconcile_caps (r1, w1) (r2, w2) (k1:CapSet.t) (k2:CapSet.t) =
 (* check if read capability (RHS) and write capability (LHS) matches *)
 let check_write w r k = 
   match (w,r) with
-  |("NONE", _) -> raise (GError "cannot write")
-  |(_, "NONE") -> raise (GError "cannot read")
+  |("NONE", _) -> raise (GError "LHS write cap is c_none")
+  |(_, "NONE") -> raise (GError "RHS read cap is c_none")
   |(a, b) when a = b -> a
   |("ANY", b) -> b
   |(a, "ANY") -> a
-  |(a,b) -> if CapSet.mem k b then a 
-    else raise (GError "incompatible caps")
+  |(a,b) -> if CapSet.mem k (b,true) then a 
+    else raise (GError "incompatible caps on LHS and RHS")
 
 let autoclone (st:State.t) (v, (r,w), k', p) = 
   let k', p = if State.is_mutable st v then k', p 
     else CapSet.empty, CapSet.union k' p in
   v,(r,w),k',p
 
-let autoclone_imm (st:State.t) (v, (r,w), k', p) = 
-  let k', p = CapSet.empty, CapSet.union k' p in
-  v,(r,w),k',p
+(* let autoclone_imm (st:State.t) (v, (r,w), k', p) = 
+   let k', p = CapSet.empty, CapSet.union k' p in
+   v,(r,w),k',p *)
 
 let unit_coerce (st:State.t) (v, (r,w), k', p) = 
   if State.is_subtype st (get_type v) T_unit then V_unit, (r, w), k', p
