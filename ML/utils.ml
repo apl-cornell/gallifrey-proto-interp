@@ -40,10 +40,21 @@ module CapSet = struct
 
   let diff (s1:t) (s2:t) = List.filter s1 (fun e -> mem s2 e |> not)
 
-  let invalidate (set:t) name = 
+  let invalidate_cap (set:t) name = 
     if mem set (name, true) then
       (name, false) :: (remove set (name, true))
     else set
+
+  let restore_cap (set:t) name = 
+    if mem set (name, false) then
+      (name, true) :: (remove set (name, false))
+    else set
+
+  (* move name from set1 to set2, returning resultant set1,set2 in a tuple *)
+  let move_cap (set1:t) (set2:t) name = 
+    let set1' = List.filter set1 (fun (n,_) -> n <> name) in
+    let set2' = set2 @ List.filter set1 (fun (n,_) -> n = name) in
+    set1', set2'
 
   let to_list (set:t) = List.map set (fun (n,v) -> n ^ "|" ^ (string_of_bool v))
 
@@ -52,6 +63,8 @@ module CapSet = struct
   let singleton (n,v) = 
     if n <> c_any && n <> c_none then [(n,v)]
     else []
+
+  let map (set:t) f = List.map set f
 
   let length = List.length
 end
@@ -142,15 +155,19 @@ let normalize biglambdalist =
   in
   helper biglambdalist [] 1
 
-let stringify_hashtbl_stack s = 
-  let keys = hashtbl_stack_keys s in
-  "[" ^ (String.concat ~sep:"," keys) ^ "]"
+let stringify_hashtbl_stack ?sep:(s_ = ", ") s  = 
+  let keys = hashtbl_stack_keys s  in
+  "[" ^ (String.concat ~sep:s_ keys) ^ "]"
 
-let stringify_capset s = 
-  "[" ^ (String.concat ~sep:"," (CapSet.to_list s)) ^ "]"
+let stringify_hashtbl ?sep:(s_ = ", ") h fmtkey fmtval = 
+  let kvs = List.fold_left (Hashtbl.to_alist h) ~init:[] ~f:(fun a (k,v) -> ((fmtkey k) ^ ":" ^ (fmtval v))::a) in
+  "[" ^ (String.concat ~sep:s_ kvs) ^ "]"
 
-let stringify_list l = 
-  "[" ^ String.concat ~sep:"," l ^ "]"
+let stringify_capset ?sep:(s_ = ", ") s = 
+  "[" ^ (String.concat ~sep:s_ (CapSet.to_list s)) ^ "]"
+
+let stringify_list ?sep:(s_ = ", ") l = 
+  "[" ^ String.concat ~sep:s_ l ^ "]"
 
 let get_type = function
   | V_int _ -> T_int
@@ -182,15 +199,18 @@ module State = struct
     }
 
   (* simple runtime validations to aid debugging *)
-  let validate_result st (value, (r,w), k', p) =
+  let validate_result st (value, (r,w), k', p) k0 =
     g_assert (not (CapSet.has_name k' c_any)) "c_any in k'";
     g_assert (not (CapSet.has_name k' c_none)) "c_none in k'";
     g_assert (not (CapSet.has_name p c_any)) "c_any in p";
     g_assert (not (CapSet.has_name p c_none)) "c_none in p";
     g_assert ((CapSet.inter k' p |> CapSet.length) = 0) "k' and p intersect";
+    g_assert (List.length st.store < 100) "stack overflow";
+    (* TODO removing this for now *)
+    (* g_assert (CapSet.length k0 >= CapSet.length k' + CapSet.length p) "lost a cap"; *)
     let cap_names = (List.map k' (fun x -> fst x)) @ (List.map p (fun x -> fst x)) in
     let deduped_names = List.dedup_and_sort (Pervasives.compare) cap_names in
-    g_assert (List.length cap_names = List.length deduped_names) "both valid and invalid version of same cap exists";
+    g_assert (List.length cap_names = List.length deduped_names) "both valid and invalid version of same cap exist";
     let store_types = hashtbl_stack_vals (fun (t,_,_) -> t) st.store in
     List.iter store_types (fun t -> g_assert (t <> T_cap) "not allowed to store result of capof");
     (value, (r,w), k', p)
@@ -261,12 +281,12 @@ module State = struct
   (* check it capability is in K *)
   let has_cap s c = c = c_any || CapSet.mem s.k (c, true) || CapSet.mem s.k (c, false)
 
-  let focused_cap s c = 
+  let is_focused s c = 
     match List.find s.focus (fun (cap,_,_) -> c = cap) with
     |Some _ -> true
     |None -> false
 
-  let valid_cap s c = c = c_any || CapSet.mem s.k (c, true) || focused_cap s c
+  let valid_cap s c = c = c_any || CapSet.mem s.k (c, true) || is_focused s c
 
   let deref s v = 
     match v with
@@ -405,17 +425,20 @@ let check_write w r k =
   |(a, b) when a = b -> a
   |("ANY", b) -> b
   |(a, "ANY") -> a
-  |(a,b) -> if CapSet.mem k (b,true) then a 
-    else raise (GError "incompatible caps on LHS and RHS")
+  |(a,b) -> 
+    if CapSet.mem k (b,true) then a 
+    else 
+      raise (GError ("incompatible caps on LHS:" ^ a ^ " and RHS:" ^ b))
+
+let invalid_all s = CapSet.map s (fun (n,_) -> n,false)
 
 let autoclone (st:State.t) (v, (r,w), k', p) = 
-  let k', p = if State.is_mutable st v then k', p 
-    else CapSet.empty, CapSet.union k' p in
+  let k', p = if State.is_mutable st v then 
+      k', p
+      (* CapSet.empty, CapSet.union (invalid_all k') p *)
+    else 
+      CapSet.empty, CapSet.union k' p in
   v,(r,w),k',p
-
-(* let autoclone_imm (st:State.t) (v, (r,w), k', p) = 
-   let k', p = CapSet.empty, CapSet.union k' p in
-   v,(r,w),k',p *)
 
 let unit_coerce (st:State.t) (v, (r,w), k', p) = 
   if State.is_subtype st (get_type v) T_unit then V_unit, (r, w), k', p

@@ -52,7 +52,7 @@ and fmt_value v =
   |V_int i -> (string_of_int i)
   |V_bool b -> (string_of_bool b)
   |V_unit -> "()"
-  |V_obj(c,o) -> "object<>"
+  |V_obj(c,o) -> sp "object<%s|%s>" c (fmt_list fmt_field o)
   |V_fun(params, rtype, body, env) -> sp "fun<(%s)->%s {\n%s\n}>" (fmt_list fmt_param params) (fmt_type rtype) (fmt_ast 0 body)
   |V_ptr(l,l',m,t) -> sp "pointer<%d, %d, %s, %s>" l l' (if m = MUT then "mut" else "immut") (fmt_type t)
   |V_cap c  -> sp "cap<%s>" c
@@ -71,8 +71,15 @@ and fmt_param p =
   |SigmaLambda(v, c, t) -> sp "Λ %s : %s %s" v c (fmt_type t)
   |KappaLambda c -> sp "Λ %s" c
 
+and fmt_field (var, (t,u,mut,loc)) = 
+  let u = match u with |U -> "U" |A -> "" in
+  let mut = match mut with |MUT -> "mut" |IMMUT -> "" in
+  u ^ " " ^ mut ^ " " ^ var ^ " : " ^ (fmt_type t) ^ " " ^ (string_of_int loc)
+  
 let print_node node = fmt_ast 0 node
 
 let print_val v = fmt_value v |> print_endline
 
 let print_type t = fmt_type t |> print_endline
+
+let expected_got t1 t2 = "expected " ^ (fmt_type t1) ^ " argument, got " ^ (fmt_type t2)

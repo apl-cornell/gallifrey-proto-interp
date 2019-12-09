@@ -1,5 +1,5 @@
 default:
-	BISECT_COVERAGE=NO ocamlbuild -tag 'debug' -use-ocamlfind -tag thread main.native ; mv main.native gallifrey
+	ocamlbuild -tag 'debug' -use-ocamlfind -tag thread main.native ; mv main.native gallifrey
 
 bisect:
 	BISECT_COVERAGE=YES ocamlbuild -tag 'debug' -use-ocamlfind -tag thread main.native ; mv main.native gallifrey; ./gallifrey -test; make report
