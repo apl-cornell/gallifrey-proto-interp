@@ -23,7 +23,7 @@ let rec eval (st:State.t) (exp:expr): result =
         let valid = if State.is_focused st c then true else State.valid_cap st c in 
         let k' = CapSet.singleton (c, valid) in
         let p = CapSet.remove st.k (c, valid) in
-        let readcap = if State.valid_cap st c then c else c_none in
+        let readcap = if valid then c else c_none in
         (* framing; P is K\c *)
         State.get_mem st loc, (readcap, c), k', p
       end
@@ -65,13 +65,13 @@ let rec eval (st:State.t) (exp:expr): result =
       end
     |Seq(e1, e2) -> begin
         let v1, (r1, w1), k', pl = eval st e1|> unit_coerce st |> autoclone st in
-        let st' = {st with k = pl} in
+        let st' = State.dropk' st k' pl in
         eval st' e2
       end
     |If(c, e1, e2) -> begin
         let v, (r, w), k', p = eval st c |> autoclone st in
         g_assert (r <> c_none) "if: cannot use invalid cap";
-        let st' = State.enter_scope {st with k = p} in
+        let st' = State.enter_scope (State.dropk' st k' p) in
         match State.deref st v with
         |V_bool b -> begin
             let e = if b then e1 else e2 in
@@ -82,7 +82,7 @@ let rec eval (st:State.t) (exp:expr): result =
     |While(c, e) -> begin
         let v, (r, w), k', p = eval st c |> autoclone st in
         g_assert (r <> c_none) "while: cannot use invalid cap";
-        let st' = State.enter_scope {st with k = p} in
+        let st' = State.enter_scope (State.dropk' st k' p) in
         match State.deref st v with
         |V_bool b -> begin
             if b then
@@ -96,9 +96,12 @@ let rec eval (st:State.t) (exp:expr): result =
     |Destroy e -> begin
         (* read cap for whatever was evaluated is destroyed *)
         let v, (r, w), k', p = eval st e |> autoclone st in
-        (* remove w from p, frame *)
+        (* print_endline @@ CapSet.to_string k';
+        print_endline @@ CapSet.to_string p; *)
+        let st = State.dropk' st k' p in
+        (* invalidate W in p, frame *)
         g_assert (State.valid_cap st w && not (State.is_focused st w)) "cannot destroy invalid/focused cap";
-        let p = CapSet.union p st.k in
+        let p = CapSet.frame st.k p in
         let p = CapSet.invalidate_cap p w in
         V_unit, (c_none, c_none), CapSet.empty, p
       end
@@ -116,12 +119,11 @@ let rec eval (st:State.t) (exp:expr): result =
                    |> List.map ~f:(fun c -> (c, State.valid_cap st c)) 
                    |> CapSet.of_list in
         let p_k, c_k = CapSet.diff st.k caps, CapSet.inter st.k caps in
-        let c_st = State.enter_scope {st with k = c_k} in
+        let c_st = State.enter_scope (State.dropk' st CapSet.empty c_k) in
         ignore(Thread.create (fun expr -> eval c_st expr) e);
         V_unit, (c_none, c_none), CapSet.empty, p_k
       end
     |Focus(var, e2) -> begin
-        (* do we NEED to focus a named class? *)
         let e1 = Var(var) in
         let v, (r, w), k', p = eval st e1 |> autoclone st in
         let st = State.enter_scope st in
@@ -142,14 +144,14 @@ let rec eval (st:State.t) (exp:expr): result =
             if CapSet.diff unique_caps p2 = CapSet.empty then
               let p = CapSet.add (CapSet.diff p2 unique_caps) (w, true) in
               v2, (r2, w2), k'', p
-            (* all unique caps valid in k' or p, add valid orig to k' *)
+              (* all unique caps valid in k' or p, add valid orig to k' *)
             else if (CapSet.diff unique_caps (CapSet.union p2 k'') = CapSet.empty) then
               let p = CapSet.diff p2 unique_caps in
               let k'' = CapSet.add (CapSet.diff k'' unique_caps) (w, true) in
               v2, (r2, w2), k'', p
-            (* unique caps not all valid, add invalid orig to p *)
+              (* unique caps not all valid, add invalid orig to p *)
             else
-              let invalid_unique = invalid_all unique_caps in
+              let invalid_unique = CapSet.invalid_all unique_caps in
               let p = CapSet.add (CapSet.diff (CapSet.diff p2 unique_caps) invalid_unique) (w, false) in
               let k'' = CapSet.diff (CapSet.diff k'' unique_caps) invalid_unique in
               v2, (r2, w2), k'', p
@@ -176,11 +178,11 @@ let rec eval (st:State.t) (exp:expr): result =
 and eval_binop st bop e1 e2 = 
   (* throw away K' and K'', no caps check atm *)
   let v1, (r1, w1), k', pl = eval st e1 |> autoclone st in
-  let st = {st with k = pl} in
+  let st = State.dropk' st k' pl in
   let v2, (r2, w2), k'', pr = eval st e2 |> autoclone st in
-  let st = {st with k = pr} in
-  g_assert (r1 <> c_none) "binop: cannot use invalid cap";
-  g_assert (r2 <> c_none) "binop: cannot use invalid cap";
+  let st = State.dropk' st k'' pr in
+  g_assert (r1 <> c_none) "binop: LHS invalid cap";
+  g_assert (r2 <> c_none) "binop: RHS invalid cap";
   let v' = match (bop, State.deref st v1, State.deref st v2) with
     | (BinopAnd, V_bool b1, V_bool b2) -> V_bool(b1 && b2)
     | (BinopOr, V_bool b1, V_bool b2) -> V_bool(b1 || b2)
@@ -193,8 +195,8 @@ and eval_binop st bop e1 e2 =
     | (BinopLeq, V_int i1, V_int i2) -> V_bool(i1 <= i2)
     | (BinopGt, V_int i1, V_int i2) -> V_bool(i1 > i2)
     | (BinopGeq, V_int i1, V_int i2) -> V_bool(i1 >= i2)
-    | (BinopNeq, _, _) -> V_bool(v1 <> v2)
-    | (BinopEq, _, _) -> V_bool(v1 = v2)
+    | (BinopNeq, v1, v2) -> V_bool(v1 <> v2)
+    | (BinopEq, v1, v2) -> V_bool(v1 = v2)
     |_ -> raise (GError "invalid binop")
   in
   let cr, cw = reconcile_caps (r1, w1) (r2, w2) pl pr in
@@ -208,9 +210,10 @@ and eval_apply st func args =
       (* helper function for evaluating a single argument *)
       let eval_arg e (state, vs, k's) =
         let v, (r, w), k', p = eval state e |> autoclone state in
-        (* make sure W caps aren't consumed *)
-        let state' = {state with k = CapSet.add p (w, State.valid_cap state w)} in
-        state', (v,r)::vs, k'::k's
+        (* TODO - check; make sure W caps aren't consumed *)
+        let st' = State.dropk' st k' p in
+        let st' = {st' with k = CapSet.restore_cap st'.k w} in
+        st', (v,r)::vs, k'::k's
       in
       let st, evaluated_args, k's = List.fold_right ~f:eval_arg ~init:(st,[],[]) args in
       (* validate store *)
@@ -276,6 +279,7 @@ and eval_apply st func args =
           |_ -> State.add_var st arg_n c arg_v
         ) processed_args;
       (* eval body *)
+      let st = {st with in_func = true} in
       let v, (r, w), k', p = eval st body |> autoclone st in
       if not (State.is_subtype st (get_type v) rtype) then 
         raise (GError "invalid return type")
@@ -306,7 +310,7 @@ and eval_object st cls fields =
          Hashtbl.set st.mem loc (V_ptr(loc, loc', m, t));
          Hashtbl.set st.mem loc' v
        end);
-    let state' = {state with k = p} in
+    let state' = State.dropk' state k' p in
     state', (var, (t, u, m, loc))::locs, k'::k's, p
   in
   let st, field_info, k's, p = List.fold_right ~f:eval_field ~init:(st,[],[],CapSet.empty) fields in
@@ -374,9 +378,10 @@ and eval_let st x e1 e2 =
   g_assert (r <> c_none) "let: cannot use invalid cap";
   let c = "c."^(string_of_int (State.unique st)) in
   let st = State.enter_scope st in
-  match State.find_var_opt st x with
-  | Some _ -> raise (GError "no shadowing allowed")
-  | None -> begin
+  match (st.in_func, State.find_var_opt st x) with
+  | false, Some _ -> raise (GError "no shadowing allowed")
+  | true, _
+  | _, None -> begin
       let loc = State.unique st in
       let loc' = State.unique st in
       (match v with
@@ -395,20 +400,21 @@ and eval_let st x e1 e2 =
            Hashtbl.set st.mem loc (V_ptr(loc, loc', IMMUT, t));
            Hashtbl.set st.mem loc' v
          end);
-      let st' = {st with k = CapSet.add p (c, true)} in
+      let st' = State.dropk' st k' (CapSet.add p (c, true)) in
       eval st' e2
     end
 
 and eval_assign st e1 e2 = 
-  (* print_endline @@ stringify_capset st.k; *)
   let v1, (r1, w1), k', pl = eval st e1 |> autoclone st in
-  let st' = {st with k = pl} in
-  (* print_endline @@ stringify_capset pl; *)
+  let st' = State.dropk' st k' pl in
+  (* print_endline @@ CapSet.to_string st'.k; *)
   let v2, (r2, w2), k'', pr = eval st' e2 |> autoclone st' in
-  (* print_endline @@ stringify_capset pr; *)
+  (* print_endline r2; *)
   (* use original K for cap rewrite *)
   let c = check_write w1 r2 st.k in
-  let st = {st' with k = pr} in
+  (* print_endline c; *)
+  let st = State.dropk' st' k'' pr in
+  (* print_endline @@ CapSet.to_string st.k; *)
   g_assert (r2 <> c_none) "assign: cannot use invalid cap";
   (* move w2 to k' if mutable, p if not *)
   let k',p = if State.is_mutable st v2 then CapSet.move_cap pr k'' w2 else CapSet.move_cap k'' pr w2 in

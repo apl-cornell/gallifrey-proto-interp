@@ -43,6 +43,7 @@ let eval_checkval = [
   ("10 / 2", V_int(5));
   ("10 % 7", V_int(3));
   ("1 == 2", V_bool(false));
+  ("let x = 1 in x == 1", V_bool(true));
   ("1 != 2", V_bool(true));
   ("1 >= 2", V_bool(false));
   ("1 <= 2", V_bool(true));
@@ -182,7 +183,7 @@ let eval_failure = [
   "let a = 1 in let f = fun (a | x : a int)-> int { x+1 } in f(capof(a))";
   "class C {a : int}; let c = 1 in let x = C(capof(c), c) in x.a = 5; x.a";
   (* TODO do constructors consume args *)
-  "class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in let y = x.a in x.a";
+  "class C {mut a : int}; let c = 1 in let x = C(capof(c), c) in let y = x.a in let z = x.a in z";
   "class C {mut a : int}; class C2 {mut o : C}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in let z = C2(capof(x),x) in z.o = y; y";
   "class C {mut a : int}; class C2 {mut o : C}; let c = 1 in let d = 2 in let x = C(capof(c),c) in let y = C(capof(d),d) in let z = C2(capof(x),x) in z.o = y; x";
   "let x = 1 in x(1)";

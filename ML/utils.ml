@@ -2,11 +2,6 @@ open Core
 include Ast
 
 (* Interpreter exceptions. *)
-(* exception UnboundVariable of var
-   exception TypeError of string
-   exception NameError of string
-   exception UnboundFieldError of string
-   exception ResourceDestroyedError of string *)
 exception GError of string
 
 let c_any = "ANY"
@@ -36,7 +31,13 @@ module CapSet = struct
 
   let inter (s1:t) (s2:t) = List.filter s1 (fun e -> mem s2 e)
 
-  let union (s1:t) (s2:t) = List.dedup_and_sort ~compare:(Pervasives.compare) (s1 @ s2)
+  let union (s1:t) (s2:t) = 
+    (* s1 @ s2 *)
+    List.dedup_and_sort ~compare:(Pervasives.compare) (s1 @ s2)
+
+  let frame k p = 
+    let k_not_p = List.filter k (fun (n,_) -> not (has_name p n)) in
+    union k_not_p p
 
   let diff (s1:t) (s2:t) = List.filter s1 (fun e -> mem s2 e |> not)
 
@@ -66,7 +67,12 @@ module CapSet = struct
 
   let map (set:t) f = List.map set f
 
+  let invalid_all s = map s (fun (n,_) -> n,false)
+
   let length = List.length
+
+  let to_string ?sep:(s_ = ", ") s = 
+    "[" ^ (String.concat ~sep:s_ (to_list s)) ^ "]"
 end
 
 type value = 
@@ -163,9 +169,6 @@ let stringify_hashtbl ?sep:(s_ = ", ") h fmtkey fmtval =
   let kvs = List.fold_left (Hashtbl.to_alist h) ~init:[] ~f:(fun a (k,v) -> ((fmtkey k) ^ ":" ^ (fmtval v))::a) in
   "[" ^ (String.concat ~sep:s_ kvs) ^ "]"
 
-let stringify_capset ?sep:(s_ = ", ") s = 
-  "[" ^ (String.concat ~sep:s_ (CapSet.to_list s)) ^ "]"
-
 let stringify_list ?sep:(s_ = ", ") l = 
   "[" ^ String.concat ~sep:s_ l ^ "]"
 
@@ -186,6 +189,7 @@ module State = struct
     classes: classes list; (* unsure about this one *)
     mem: memory;
     counter: int ref;
+    in_func: bool;
   }
 
   let init = fun () -> 
@@ -196,6 +200,7 @@ module State = struct
       classes = [Hashtbl.create (module String)];
       mem = Hashtbl.create (module Int);
       counter = ref 0;
+      in_func = false;
     }
 
   (* simple runtime validations to aid debugging *)
@@ -205,7 +210,7 @@ module State = struct
     g_assert (not (CapSet.has_name p c_any)) "c_any in p";
     g_assert (not (CapSet.has_name p c_none)) "c_none in p";
     g_assert ((CapSet.inter k' p |> CapSet.length) = 0) "k' and p intersect";
-    g_assert (List.length st.store < 100) "stack overflow";
+    g_assert (List.length st.store < 1000) "stack overflow";
     (* TODO removing this for now *)
     (* g_assert (CapSet.length k0 >= CapSet.length k' + CapSet.length p) "lost a cap"; *)
     let cap_names = (List.map k' (fun x -> fst x)) @ (List.map p (fun x -> fst x)) in
@@ -390,6 +395,10 @@ module State = struct
     Hashtbl.add_exn (List.hd_exn st.store) name (t, c, loc1);
     Hashtbl.add_exn st.mem loc1 (V_ptr(loc1, loc2, MUT, t));
     Hashtbl.add_exn st.mem loc2 value
+
+  let dropk' st k' p = 
+    g_assert ((CapSet.inter k' p |> CapSet.length) = 0) "k' and p intersect";
+    { st with k = CapSet.union (CapSet.invalid_all k') p}
 end
 
 let reconcile_read (c1:cap) (c2:cap) (k1:CapSet.t) (k2:CapSet.t) = 
@@ -430,12 +439,9 @@ let check_write w r k =
     else 
       raise (GError ("incompatible caps on LHS:" ^ a ^ " and RHS:" ^ b))
 
-let invalid_all s = CapSet.map s (fun (n,_) -> n,false)
-
 let autoclone (st:State.t) (v, (r,w), k', p) = 
   let k', p = if State.is_mutable st v then 
       k', p
-      (* CapSet.empty, CapSet.union (invalid_all k') p *)
     else 
       CapSet.empty, CapSet.union k' p in
   v,(r,w),k',p
