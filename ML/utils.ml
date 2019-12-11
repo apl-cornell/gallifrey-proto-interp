@@ -210,7 +210,7 @@ module State = struct
     g_assert (not (CapSet.has_name p c_any)) "c_any in p";
     g_assert (not (CapSet.has_name p c_none)) "c_none in p";
     g_assert ((CapSet.inter k' p |> CapSet.length) = 0) "k' and p intersect";
-    g_assert (List.length st.store < 1000) "stack overflow";
+    g_assert (List.length st.store < 250) "stack overflow";
     (* TODO removing this for now *)
     (* g_assert (CapSet.length k0 >= CapSet.length k' + CapSet.length p) "lost a cap"; *)
     let cap_names = (List.map k' (fun x -> fst x)) @ (List.map p (fun x -> fst x)) in

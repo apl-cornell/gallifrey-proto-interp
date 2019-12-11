@@ -41,16 +41,21 @@ let rec eval (st:State.t) (exp:expr): result =
     |Object(cls, fields) -> eval_object st cls fields
     |Get(e,fname) -> begin
         let v, (r, w), k', p = eval st e |> autoclone st in
+        g_assert (State.valid_cap st r) "invalid read cap for object";
+        g_assert (State.valid_cap st r) "invalid write cap for object";
         match State.deref st v with
         |V_obj(cls, fields) -> begin
             let (t,u,mut,loc) = List.Assoc.find_exn fields ~equal:(=) fname in
             (* get unique field capability only while focused, otherwise treat as aliasable field *)
-            let r = match u with
+            let rf = match u with
               |U -> if (State.is_focused st w) then r ^ "." ^ fname else r
               |A -> r
             in
-            (* if immutable, no write is allowed *)
-            let w = if (State.is_focused st w) then w ^ "." ^ fname else w in
+            (* if immutable, no write is allowed, always use unique writecap for unique fields *)
+            let wf = match u with
+              |U -> w ^ "." ^ fname
+              |A -> w
+            in
             let fval = State.get_mem st loc in
             (* TODO check this behavior *)
             let k', p = 
@@ -59,7 +64,7 @@ let rec eval (st:State.t) (exp:expr): result =
               else 
                 CapSet.move_cap k' p w
             in
-            fval, (r,w), k', p
+            fval, (rf,wf), k', p
           end
         |_ -> raise (GError "expected object")
       end
@@ -97,7 +102,7 @@ let rec eval (st:State.t) (exp:expr): result =
         (* read cap for whatever was evaluated is destroyed *)
         let v, (r, w), k', p = eval st e |> autoclone st in
         (* print_endline @@ CapSet.to_string k';
-        print_endline @@ CapSet.to_string p; *)
+           print_endline @@ CapSet.to_string p; *)
         let st = State.dropk' st k' p in
         (* invalidate W in p, frame *)
         g_assert (State.valid_cap st w && not (State.is_focused st w)) "cannot destroy invalid/focused cap";
