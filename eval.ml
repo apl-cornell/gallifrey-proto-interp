@@ -1,5 +1,6 @@
 include Utils
 open Core
+open Core.Poly
 open Unix
 open Pprint
 open Thread
@@ -7,7 +8,7 @@ open Thread
 let init_state = State.init
 
 (* value, read, write, K', P *)
-type result = value * (cap * cap) * CapSet.t * CapSet.t
+type result = value * (cap * cap) * CapSet.set_t * CapSet.set_t
 
 let rec eval (st:State.t) (exp:expr): result = 
   (* do we transfer K to P in all of these *)
@@ -101,8 +102,8 @@ let rec eval (st:State.t) (exp:expr): result =
     |Destroy e -> begin
         (* read cap for whatever was evaluated is destroyed *)
         let v, (r, w), k', p = eval st e |> autoclone st in
-        (* print_endline @@ CapSet.to_string k';
-           print_endline @@ CapSet.to_string p; *)
+        (* print_endline @@ CapSet.set_to_string k';
+           print_endline @@ CapSet.set_to_string p; *)
         let st = State.dropk' st k' p in
         (* invalidate W in p, frame *)
         g_assert (State.valid_cap st w && not (State.is_focused st w)) "cannot destroy invalid/focused cap";
@@ -202,7 +203,7 @@ and eval_binop st bop e1 e2 =
     | (BinopGeq, V_int i1, V_int i2) -> V_bool(i1 >= i2)
     | (BinopNeq, v1, v2) -> V_bool(v1 <> v2)
     | (BinopEq, v1, v2) -> V_bool(v1 = v2)
-    |_ -> raise (GError "invalid binop")
+    |_ -> print_endline (fmt_value v1); print_endline (fmt_value v2); raise (GError "invalid binop")
   in
   let cr, cw = reconcile_caps (r1, w1) (r2, w2) pl pr in
   v', (cr, cw), CapSet.empty, pr
@@ -412,14 +413,14 @@ and eval_let st x e1 e2 =
 and eval_assign st e1 e2 = 
   let v1, (r1, w1), k', pl = eval st e1 |> autoclone st in
   let st' = State.dropk' st k' pl in
-  (* print_endline @@ CapSet.to_string st'.k; *)
+  (* print_endline @@ CapSet.set_to_string st'.k; *)
   let v2, (r2, w2), k'', pr = eval st' e2 |> autoclone st' in
   (* print_endline r2; *)
   (* use original K for cap rewrite *)
   let c = check_write w1 r2 st.k in
   (* print_endline c; *)
   let st = State.dropk' st' k'' pr in
-  (* print_endline @@ CapSet.to_string st.k; *)
+  (* print_endline @@ CapSet.set_to_string st.k; *)
   g_assert (r2 <> c_none) "assign: cannot use invalid cap";
   (* move w2 to k' if mutable, p if not *)
   let k',p = if State.is_mutable st v2 then CapSet.move_cap pr k'' w2 else CapSet.move_cap k'' pr w2 in

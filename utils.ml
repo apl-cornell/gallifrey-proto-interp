@@ -1,4 +1,5 @@
 open Core
+open Core.Poly
 include Ast
 
 (* Interpreter exceptions. *)
@@ -8,64 +9,65 @@ let c_any = "ANY"
 let c_none = "NONE"
 
 module CapSet = struct 
-  type t = (cap * bool) list
+  type elt_t = (cap * bool)
+  type set_t = elt_t list
 
-  let empty:t = []
+  let empty:set_t = []
 
-  let mem (set:t) elt = List.mem set elt (=)
+  let mem (set:set_t) (elt:elt_t) = List.mem set elt (=)
 
-  let has_name (set:t) name =
-    match List.filter set (fun (n,_) -> n = name) with
+  let has_name (set:set_t) (name:string) =
+    match List.filter set (fun c -> (fst c) = name) with
     |h::t -> true
     |_ -> false
 
-  let add (set:t) elt = 
+  let add (set:set_t) (elt:elt_t) = 
     let n = fst elt in
     if n <> c_any && n <> c_none && (mem set elt |> not) then
       elt::set
     else set
 
-  let remove (set:t) elt = List.filter set (fun e -> e <> elt)
+  let remove (set:set_t) (elt:elt_t) = List.filter set (fun e -> e <> elt)
 
-  let remove_name (set:t) name = List.filter set (fun (n,_) -> n <> name)
+  let remove_name (set:set_t) (name:string) = List.filter set (fun (n,_) -> n <> name)
 
-  let inter (s1:t) (s2:t) = List.filter s1 (fun e -> mem s2 e)
+  let inter (s1:set_t) (s2:set_t) = List.filter s1 (fun e -> mem s2 e)
 
-  let union (s1:t) (s2:t) = 
+  let union (s1:set_t) (s2:set_t) = 
     (* s1 @ s2 *)
-    List.dedup_and_sort ~compare:(Pervasives.compare) (s1 @ s2)
+    List.dedup_and_sort ~compare:(Stdlib.compare) (s1 @ s2)
 
-  let frame k p = 
+  let frame (k:set_t) (p:set_t) = 
     let k_not_p = List.filter k (fun (n,_) -> not (has_name p n)) in
     union k_not_p p
 
-  let diff (s1:t) (s2:t) = List.filter s1 (fun e -> mem s2 e |> not)
+  let diff (s1:set_t) (s2:set_t) = List.filter s1 (fun e -> mem s2 e |> not)
 
-  let invalidate_cap (set:t) name = 
+  let invalidate_cap (set:set_t) (name:string) = 
     if mem set (name, true) then
       (name, false) :: (remove set (name, true))
     else set
 
-  let restore_cap (set:t) name = 
+  let restore_cap (set:set_t) (name:string) = 
     if mem set (name, false) then
       (name, true) :: (remove set (name, false))
     else set
 
   (* move name from set1 to set2, returning resultant set1,set2 in a tuple *)
-  let move_cap (set1:t) (set2:t) name = 
+  let move_cap (set1:set_t) (set2:set_t) (name:string) = 
     let set1' = List.filter set1 (fun (n,_) -> n <> name) in
     let set2' = set2 @ List.filter set1 (fun (n,_) -> n = name) in
     set1', set2'
 
-  let to_list (set:t) = List.map set (fun (n,v) -> n ^ "|" ^ (string_of_bool v))
+  let to_list (set:set_t) = List.map set (fun (n,v) -> n ^ "|" ^ (string_of_bool v))
 
-  let of_list (set:t) = set
+  let of_list (set:set_t) = set
 
   let singleton (n,v) = 
     if n <> c_any && n <> c_none then [(n,v)]
     else []
 
-  let map (set:t) f = List.map set f
+  let map (set:set_t) f = List.map set f
 
   let invalid_all s = map s (fun (n,_) -> n,false)
 
@@ -183,7 +185,7 @@ let get_type = function
 
 module State = struct
   type t = {
-    k: CapSet.t;
+    k: CapSet.set_t;
     store: t_store list;
     focus: (cap * gtype * loc) list; 
     classes: classes list; (* unsure about this one *)
@@ -214,7 +216,7 @@ module State = struct
     (* TODO removing this for now *)
     (* g_assert (CapSet.length k0 >= CapSet.length k' + CapSet.length p) "lost a cap"; *)
     let cap_names = (List.map k' (fun x -> fst x)) @ (List.map p (fun x -> fst x)) in
-    let deduped_names = List.dedup_and_sort (Pervasives.compare) cap_names in
+    let deduped_names = List.dedup_and_sort (Stdlib.compare) cap_names in
     g_assert (List.length cap_names = List.length deduped_names) "both valid and invalid version of same cap exist";
     let store_types = hashtbl_stack_vals (fun (t,_,_) -> t) st.store in
     List.iter store_types (fun t -> g_assert (t <> T_cap) "not allowed to store result of capof");
@@ -284,18 +286,20 @@ module State = struct
     |_ -> raise (GError "expected pointer")
 
   (* check it capability is in K *)
-  let has_cap s c = c = c_any || CapSet.mem s.k (c, true) || CapSet.mem s.k (c, false)
+  let has_cap (st:t) (c:string) = 
+    c = c_any || CapSet.mem st.k (c, true) || CapSet.mem st.k (c, false)
 
-  let is_focused s c = 
-    match List.find s.focus (fun (cap,_,_) -> c = cap) with
+  let is_focused (st:t) (c:string) = 
+    match List.find st.focus (fun (cap,_,_) -> c = cap) with
     |Some _ -> true
     |None -> false
 
-  let valid_cap s c = c = c_any || CapSet.mem s.k (c, true) || is_focused s c
+  let valid_cap (st:t) (c:string) = 
+    c = c_any || CapSet.mem st.k (c, true) || is_focused st c
 
-  let deref s v = 
+  let deref (st:t) (v:value) = 
     match v with
-    |V_ptr(loc, loc', m, t) -> get_mem s loc'
+    |V_ptr(loc, loc', m, t) -> get_mem st loc'
     |_ -> v
 
   (* equivalent to hashtbl.replace but for our special stack *)
@@ -401,7 +405,7 @@ module State = struct
     { st with k = CapSet.union (CapSet.invalid_all k') p}
 end
 
-let reconcile_read (c1:cap) (c2:cap) (k1:CapSet.t) (k2:CapSet.t) = 
+let reconcile_read (c1:cap) (c2:cap) (k1:CapSet.set_t) (k2:CapSet.set_t) = 
   match c1, c2 with
   |(a,b) when a = b -> a
   (* top relabel *)
@@ -423,7 +427,7 @@ let reconcile_write (c1:cap) (c2:cap) =
   |(a,"NONE") -> c_none
   |_ -> c_none
 
-let reconcile_caps (r1, w1) (r2, w2) (k1:CapSet.t) (k2:CapSet.t) = 
+let reconcile_caps (r1, w1) (r2, w2) (k1:CapSet.set_t) (k2:CapSet.set_t) = 
   (reconcile_read r1 r2 k1 k2, reconcile_write w1 w2)
 
 (* check if read capability (RHS) and write capability (LHS) matches *)

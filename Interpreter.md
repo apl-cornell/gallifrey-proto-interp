@@ -44,3 +44,9 @@ There is an automated test suite for the interpreter, with tests split into 3 ty
 Tests are defined with a string of source code that should be run; additionally an expected value must be provided for the value tests. Lexing or parsing errors in any of the tests will cause the test suite itself to fail, and will not be counted as a runtime exception. 
 
 Tests which check for failure only check that an exception occurred, not what type of exception, so it is recommended to pair them with a similar test that will not throw an exception at runtime.
+
+### Known Bugs
+
+Precedence for parsing is not that great, and in general the parser does not fail in all the cases that it should. For example, there are limitations for what can be on the left hand side of an assignment and what can be used for destroy/sleep, but those are checked at runtime by the interpreter.
+
+Example parsing issue: the string `x.w(x) + x.w(x)` gets parsed as `(x.w(x) + x.w)(x)` instead of `(x.w(x)) + (x.w(x))`

@@ -1,16 +1,17 @@
 open Eval
 open Utils
 open Core
+open Core.Poly
 
 let eval_test s = 
   let lexbuf = Lexing.from_string s in
   let ast =
     try Parser.p Lexer.token lexbuf
     with Parsing.Parse_error ->
-      Printf.printf "Syntax error: (%d,%d) %s\n"
+      Printf.sprintf "Syntax error: (%d,%d) %s\n"
         !Lexer.lineno
         (Lexing.lexeme_end lexbuf - !Lexer.linestart - 1)
-        s;
+        s |> print_endline;
       exit 1 
   in 
   let st = Eval.init_state () in
@@ -86,9 +87,6 @@ let eval_checkval = [
     x.a = x.a; x.a", V_int(1));
   ("let x = 1 in 
     -x", V_int(-1));
-  ("class C {mut a : int}; let c = 1 in 
-    let x = C(capof(c),c) in 
-    x.a = x.a; x.a", V_int(1));
   ("class C {mut a : int}; let c = 1 in 
     let d = 2 in 
     let x = C(capof(c),c) in 

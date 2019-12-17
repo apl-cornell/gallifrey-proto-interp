@@ -11,6 +11,6 @@ let factorial = fun (x : c0 C |) (c1 | a : c1 int)->int {
 } in
 let x = C(capof(factorial), factorial) in 
 focus x { 
-    let n = 10 in 
+    let n = 5 in 
     x.w(x, capof(n), n) 
 }

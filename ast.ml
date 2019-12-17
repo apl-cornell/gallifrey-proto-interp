@@ -1,5 +1,3 @@
-open Core
-
 (* Parsing information: ((l1,c1),(l2,c2)) represents a symbol
    appearing at line l1 character c1 to line l2 character c2. *)
 type info = (int * int) * (int * int)

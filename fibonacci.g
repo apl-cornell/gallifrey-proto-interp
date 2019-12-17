@@ -7,7 +7,7 @@ let fibonacci = fun (x : c0 C |) (c1 | a : c1 int)->int {
     } else { 
         let aa = a - 1 in 
         let bb = a - 2 in
-        x.w(x, capof(aa),aa) + x.w(x, capof(bb),bb) 
+        (x.w(x, capof(aa),aa)) + (x.w(x, capof(bb),bb))
     }
 } in
 let x = C(capof(fibonacci), fibonacci) in 
