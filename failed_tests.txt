@@ -30,6 +30,7 @@ right now this succeeds (expected failure) because c.x is restored by writing 0 
 
 
 4)
+class C {mut a : int}; 
 let c = 1 in 
 let x = C(capof(c),c) in 
 let y = x in 

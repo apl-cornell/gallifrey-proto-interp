@@ -276,7 +276,7 @@ The last invariant means that the result of`capof` is supposed to be used immedi
 
 ## 3.4 Testing:
 
-There is an automated test suite for the interpreter (`test.ml`), with tests split into 3 types: 
+There is an automated test suite for the interpreter (`test.ml`), with ~134 tests split into 3 types: 
 - value (check the returned value)
 - success (check that program succeeded evaluating)
 - failure (check that program failed at runtime)
