@@ -129,41 +129,7 @@ let rec eval (st:State.t) (exp:expr): result =
         ignore(Thread.create (fun expr -> eval c_st expr) e);
         V_unit, (c_none, c_none), CapSet.empty, p_k
       end
-    |Focus(var, e2) -> begin
-        let e1 = Var(var) in
-        let v, (r, w), k', p = eval st e1 |> autoclone st in
-        let st = State.enter_scope st in
-        g_assert (State.valid_cap st w) "focus: cannot use invalid cap";
-        match v, State.deref st v with
-        |(V_ptr(l1, l2, _, T_cls cname), V_obj(cls, fields)) -> begin
-            let unique_caps = List.filter ~f:(fun (v, (t,u,m,l)) -> u = U) fields 
-                              |> List.map ~f:(fun (v, (t,u,m,l)) -> w ^ "." ^ v) 
-                              |> List.map ~f:(fun c -> (c, true)) 
-                              |> CapSet.of_list in
-            let st' = {
-              st with focus = (w, T_cls cname, l2)::(st.focus);
-                      (* add unique caps, remove object's cap *)
-                      k = CapSet.remove_name (CapSet.union p unique_caps) w
-            } in
-            let v2, (r2, w2), k'', p2 = eval st' e2 |> autoclone st' in
-            (* all unique caps valid in p, add valid orig to p *)
-            if CapSet.diff unique_caps p2 = CapSet.empty then
-              let p = CapSet.add (CapSet.diff p2 unique_caps) (w, true) in
-              v2, (r2, w2), k'', p
-              (* all unique caps valid in k' or p, add valid orig to k' *)
-            else if (CapSet.diff unique_caps (CapSet.union p2 k'') = CapSet.empty) then
-              let p = CapSet.diff p2 unique_caps in
-              let k'' = CapSet.add (CapSet.diff k'' unique_caps) (w, true) in
-              v2, (r2, w2), k'', p
-              (* unique caps not all valid, add invalid orig to p *)
-            else
-              let invalid_unique = CapSet.invalid_all unique_caps in
-              let p = CapSet.add (CapSet.diff (CapSet.diff p2 unique_caps) invalid_unique) (w, false) in
-              let k'' = CapSet.diff (CapSet.diff k'' unique_caps) invalid_unique in
-              v2, (r2, w2), k'', p
-          end
-        |_ -> raise (GError "expected object")
-      end
+    |Focus(var, e2) -> eval_focus st var e2
     |Assign(e1, e2) -> eval_assign st e1 e2
     |Neg e -> begin
         let v, (r, w), k', p = eval st e |> autoclone st in
@@ -379,7 +345,7 @@ and eval_cls_decl st c fields super =
   V_unit, (c_any, c_none), CapSet.empty, st.k
 
 and eval_let st x e1 e2 = 
-  (* autoclone to prevent own caps from being consumed *)
+  (* autoclone to prevent immutable RHS caps from being consumed *)
   let v, (r, w), k', p = eval st e1 |> autoclone st in
   g_assert (r <> c_none) "let: cannot use invalid cap";
   let c = "c."^(string_of_int (State.unique st)) in
@@ -391,15 +357,19 @@ and eval_let st x e1 e2 =
       let loc = State.unique st in
       let loc' = State.unique st in
       (match v with
+      (* aliasing *)
        |V_ptr(l,l',m,t) -> begin
            let value = State.get_mem st l' in
            Hashtbl.set (List.hd_exn st.store) x (t, c, loc);
+           (* mutable RHS *)
            if State.is_mutable st value then
              Hashtbl.set st.mem loc (V_ptr(loc, l', IMMUT, t))
+          (* immutable RHS *)
            else 
              (Hashtbl.set st.mem loc (V_ptr(loc, loc', IMMUT, t));
               Hashtbl.set st.mem loc' (State.get_mem st l'))
          end
+      (* value *)
        |v -> begin
            let t = get_type v in
            Hashtbl.set (List.hd_exn st.store) x (t, c, loc);
@@ -449,3 +419,38 @@ and eval_assign st e1 e2 =
      end
    |_ -> raise (GError "illegal assignment"));
   V_unit, (c_none, c_none), k', p
+
+and eval_focus st var e2 = 
+  let e1 = Var(var) in
+  let v, (r, w), k', p = eval st e1 |> autoclone st in
+  let st = State.enter_scope st in
+  g_assert (State.valid_cap st w) "focus: cannot use invalid cap";
+  match v, State.deref st v with
+  |(V_ptr(l1, l2, _, T_cls cname), V_obj(cls, fields)) -> begin
+      let unique_caps = List.filter ~f:(fun (v, (t,u,m,l)) -> u = U) fields 
+                        |> List.map ~f:(fun (v, (t,u,m,l)) -> w ^ "." ^ v) 
+                        |> List.map ~f:(fun c -> (c, true)) 
+                        |> CapSet.of_list in
+      let st' = {
+        st with focus = (w, T_cls cname, l2)::(st.focus);
+                (* add unique caps, remove object's cap *)
+                k = CapSet.remove_name (CapSet.union p unique_caps) w
+      } in
+      let v2, (r2, w2), k'', p2 = eval st' e2 |> autoclone st' in
+      (* all unique caps valid in p, add valid orig to p *)
+      if CapSet.diff unique_caps p2 = CapSet.empty then
+        let p = CapSet.add (CapSet.diff p2 unique_caps) (w, true) in
+        v2, (r2, w2), k'', p
+        (* all unique caps valid in k' or p, add valid orig to k' *)
+      else if (CapSet.diff unique_caps (CapSet.union p2 k'') = CapSet.empty) then
+        let p = CapSet.diff p2 unique_caps in
+        let k'' = CapSet.add (CapSet.diff k'' unique_caps) (w, true) in
+        v2, (r2, w2), k'', p
+        (* unique caps not all valid, add invalid orig to p *)
+      else
+        let invalid_unique = CapSet.invalid_all unique_caps in
+        let p = CapSet.add (CapSet.diff (CapSet.diff p2 unique_caps) invalid_unique) (w, false) in
+        let k'' = CapSet.diff (CapSet.diff k'' unique_caps) invalid_unique in
+        v2, (r2, w2), k'', p
+    end
+  |_ -> raise (GError "expected object")

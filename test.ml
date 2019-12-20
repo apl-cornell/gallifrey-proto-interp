@@ -496,8 +496,9 @@ let eval_failure = [
   "class C {mut a : int}; 
     let c = 2 in 
     let x = C(capof(c), c) in 
-    let f = fun (x | a : x C)->C { let y = a in 
-    y } in 
+    let f = fun (x | a : x C)->C { 
+        let y = a in y 
+    } in 
     let z = f(capof(x), x) in x";
   "class C {mut a : int}; 
     class C2 {o : C};let c = 1 in 
