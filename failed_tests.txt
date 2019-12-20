@@ -1,0 +1,63 @@
+1)
+class C {mut a : int}; 
+let c = 1 in 
+let x = C(capof(c), c) in 
+destroy(x.a); 
+x.a = 3; 
+let y = x.a in y
+
+right now this succeeds (expected failure) because c.x is restored by writing 3 to x.a; should this happen? idts
+
+2)
+class C {mut U a : int, mut b : int}; 
+let c = 1 in 
+let d = 2 in 
+let x = C(capof(c), capof(d), c, d) in 
+x.a = x.b; let y = x in y
+
+right now this succeeds (expected failure) because the LHS capability being restored trumps the RHS capability being consumed so the 
+overall effect of assigning U x.a = A x.b is that c.x is not consumed. I remember this should be an error but I'm not sure what to check.
+
+3)
+class C {mut a : int}; 
+    let c = 1 in 
+    let x = C(capof(c),c) in 
+    let y = x in 
+    (x.a = 0; let z = x.a in z)
+    
+
+right now this succeeds (expected failure) because c.x is restored by writing 0 to x.a; similar to the first case
+
+
+4)
+let c = 1 in 
+let x = C(capof(c),c) in 
+let y = x in 
+(x.a = 0; y.a)
+
+right now this succeeds (expected failure); wouldn't this give both x and y access to that object? since writing x.a = 0 restores x.a (capability c.x)
+
+5)
+class C {mut a : int}; 
+    let c = 2 in 
+    let x = C(capof(c), c) in 
+    let f = fun (x | a : x C)->C { 
+        let y = a in y 
+    } in 
+    let z = f(capof(x), x) in x
+
+right now this succeeds (expected failure); the capability for x should be consumed by the let y ...
+
+6)
+class C {mut a : int}; 
+    class C2 {mut o : C}; 
+    let c = 1 in 
+    let d = 2 in 
+    let x = C(capof(c),c) in 
+    let y = C(capof(d),d) in 
+    let z = C2(capof(x),x) in 
+    (z.o = y; z.o)
+
+fails (should succeed) - read capability for y is none (implying that it is not valid), which doesnt make sense because y was never used until the assignment
+
+

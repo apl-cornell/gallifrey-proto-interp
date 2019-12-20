@@ -289,6 +289,8 @@ This project uses Bisect for code coverage - currently code coverage for `eval.m
 
 Additionally, some of the longer test programs exist in separate source files (`*.g`) for example purposes. They mostly deal with recursion and higher order functions.
 
+The test suite does not check capabilities for the final value that is produced, so when writing test cases that check for whether or not something can be used, actually write an expression that uses the value.
+
 ## 3.5 Known Bugs
 
 Precedence for parsing is not defined particularly well, and in general the parser does not fail in all the cases that it should. For example, there are limitations for what can be on the left hand side of an assignment and what can be used for destroy/sleep, but those are checked at runtime by the interpreter.
@@ -297,6 +299,6 @@ Example parsing issue: the string `x.w(x) + x.w(x)` gets parsed as `(x.w(x) + x.
 
 Losing capabilities - an earlier iteration of this system had capabilities being dropped completely from K when they are consumed or destroyed, and K' was dropped if the result was mutable. The current system is _supposed_ to mark capabilities as invalid instead of removing them (with the exception of removing unique field capabilities when focus ends) and invalidate everything in K' instead of dropping. There is a runtime check to ensure that no capabilities are ever lost, but it is commented out because there are capabilities being removed at various points in the program (possibly due to K' being dropped). 
 
-General bugs: any failing test cases (~half a dozen at the time of writing).
+General bugs: any failing test cases (~half a dozen at the time of writing). They mainly relate to restoring capabilities from assignment, and improperly invalidating capabilities from objects.
 
 Areas that could use more test coverage: behavior after branching, behavior after focus, multi-layer focusing, interaction between focus, branch, and function calls.

@@ -33,6 +33,8 @@ module CapSet = struct
 
   let inter (s1:set_t) (s2:set_t) = List.filter s1 (fun e -> mem s2 e)
 
+  let inter_name (s1:set_t) (s2:set_t) = List.filter s1 (fun (n,_) -> has_name s2 n)
+
   let union (s1:set_t) (s2:set_t) = 
     (* s1 @ s2 *)
     List.dedup_and_sort ~compare:(Stdlib.compare) (s1 @ s2)
@@ -297,6 +299,9 @@ module State = struct
   let valid_cap (st:t) (c:string) = 
     c = c_any || CapSet.mem st.k (c, true) || is_focused st c
 
+  let valid_anywhere (st:t) (c:string) = 
+    c = c_any || CapSet.mem st.k (c, true) || CapSet.mem st.k (c, true) || is_focused st c
+
   let deref (st:t) (v:value) = 
     match v with
     |V_ptr(loc, loc', m, t) -> get_mem st loc'
@@ -401,7 +406,7 @@ module State = struct
     Hashtbl.add_exn st.mem loc2 value
 
   let dropk' st k' p = 
-    g_assert ((CapSet.inter k' p |> CapSet.length) = 0) "k' and p intersect";
+    g_assert ((CapSet.inter_name k' p |> CapSet.length) = 0) "k' and p intersect";
     { st with k = CapSet.union (CapSet.invalid_all k') p}
 end
 

@@ -213,10 +213,6 @@ let eval_checkval = [
   ("class C {mut a : int}; 
     let c = 1 in 
     let f = fun (x| a : x int)->C { C(capof(a), a) } in 
-    (f(capof(c), c)).a", V_int(1));
-  ("class C {mut a : int}; 
-    let c = 1 in 
-    let f = fun (x| a : x int)->C { C(capof(a), a) } in 
     let x = f(capof(c), c) in 
     x.a", V_int(1));
   ("class C {mut a : int}; 
@@ -280,6 +276,10 @@ let eval_checkval = [
       let z2 = z + 1 in z2 
     } in 
     f(capof(x),x.a); x.a", V_int(2));
+  ("class C {mut a : int}; 
+    let c = 1 in 
+    let f = fun (x| a : x int)->C { C(capof(a), a) } in 
+    (f(capof(c), c)).a", V_int(1));
   ("class C {mut a : int}", V_unit);
   ("class C {mut U a : int}", V_unit);
   ("class C {mut a : int}; 
@@ -449,7 +449,7 @@ let eval_success = [
     let c1 = 0 in 
     let x = C(capof(c1), c1) in 
     let c2 = x.a in 
-    let y = C2(capof(c2), c2) in x"
+    let y = C2(capof(c2), c2) in x";
 ]
 
 (* check that evaluation failed *)
@@ -522,12 +522,11 @@ let eval_failure = [
     let c = 1 in 
     let x = C(capof(c), c) in 
     x.a = 5; x.a";
-  (* TODO do constructors consume args *)
   "class C {mut a : int}; 
     let c = 1 in 
     let x = C(capof(c), c) in 
-    let y = x.a in 
-    let z = x.a in z";
+    let y = x in 
+    let z = x in z";
   "class C {mut a : int}; 
     class C2 {mut o : C}; 
     let c = 1 in 
@@ -587,12 +586,12 @@ let eval_failure = [
     let c = 1 in 
     let x = C(capof(c),c) in 
     let y = x in 
-    (x.a = 0; x.a)";
+    (x.a = 0; let z = x.a in z)";
   "class C {mut a : int}; 
     let c = 1 in 
     let x = C(capof(c),c) in 
     let y = x in 
-    (y.a = 0; x.a)";
+    (y.a = 0; let z = x.a in z)";
   (* recursion SO *)
   "class C { mut w : (x : c0 C |)->unit }; 
     let f = fun (x : c0 C |)->unit { x.w(x) } in 
@@ -602,14 +601,14 @@ let eval_failure = [
     let c = 1 in 
     let d = 2 in 
     let x = C(capof(c), capof(d), c, d) in 
-    x.a = x.b; x";
+    x.a = x.b; let y = x in y";
   "class C {mut a : int}; 
     let c = 1 in 
     let x = C(capof(c), c) in 
     destroy(x.a); 
     x.a = 3; 
     let y = x.a in y";
-]
+  ]
 
 let run_tests = fun () -> 
   print_endline "check value:";
